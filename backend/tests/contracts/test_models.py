@@ -216,6 +216,20 @@ def test_error_response_wraps_api_error_payload_exactly():
     }
 
 
+def test_job_status_response_rejects_error_payload_for_non_failed_status():
+    with pytest.raises(ValidationError, match="only failed job responses may include an error payload"):
+        JobStatusResponse(
+            job_id="job_123",
+            status=JobStatus.RUNNING,
+            current_stage=JobStage.SEMANTIC_ENRICH,
+            error=ApiError(
+                code="semantic_output_invalid",
+                message="Model output failed structured validation after retry.",
+                retriable=True,
+            ),
+        )
+
+
 def test_api_response_models_capture_exact_contract_shapes():
     create_job = CreateJobResponse(
         job_id="job_123",

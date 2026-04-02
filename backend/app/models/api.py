@@ -59,6 +59,8 @@ class JobStatusResponse(ContractModel):
     def validate_failed_shape(self) -> "JobStatusResponse":
         if self.status == JobStatus.FAILED and self.error is None:
             raise ValueError("failed job responses require an error payload")
+        if self.status != JobStatus.FAILED and self.error is not None:
+            raise ValueError("only failed job responses may include an error payload")
         return self
 
 
