@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+from enum import Enum
+
+from pydantic import Field, model_validator
+
+from app.models.formily import FormilySchemaNode
+from app.models.semantic import ContractModel
+
+
+class JobStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class JobStage(str, Enum):
+    INGEST = "ingest"
+    OCR_TABLE = "ocr_table"
+    NORMALIZE_LAYOUT = "normalize_layout"
+    SEMANTIC_ENRICH = "semantic_enrich"
+    VALIDATE_SCHEMA_INTENT = "validate_schema_intent"
+    COMPILE_FORMILY = "compile_formily"
+    PERSIST_RESULT = "persist_result"
+
+
+class ApiError(ContractModel):
+    code: str
+    message: str
+    retriable: bool
+
+
+class JobWarning(ContractModel):
+    code: str
+    message: str
+
+
+class CreateJobResponse(ContractModel):
+    job_id: str
+    status: JobStatus
+    current_stage: JobStage
+    created_at: str
+
+
+class JobStatusResponse(ContractModel):
+    job_id: str
+    status: JobStatus
+    current_stage: JobStage
+    elapsed_ms: int | None = None
+    warnings: list[JobWarning] | None = None
+    error: ApiError | None = None
+
+    @model_validator(mode="after")
+    def validate_failed_shape(self) -> "JobStatusResponse":
+        if self.status == JobStatus.FAILED and self.error is None:
+            raise ValueError("failed job responses require an error payload")
+        return self
+
+
+class ResultResponse(ContractModel):
+    job_id: str
+    status: JobStatus
+    overall_confidence: float
+    schema_: FormilySchemaNode = Field(alias="schema")
+    warnings: list[JobWarning] | None = None
+
+    @model_validator(mode="after")
+    def validate_result_status(self) -> "ResultResponse":
+        if self.status != JobStatus.SUCCEEDED:
+            raise ValueError("result responses require succeeded status")
+        return self
+
+
+class ArtifactPaths(ContractModel):
+    source_image: str
+    ocr_json: str
+    layout_skeleton: str
+    semantic_form_model: str
+    formily_schema: str
+
+
+class PromptVersions(ContractModel):
+    semantic_enrich: str
+    validate_schema_intent: str
+
+
+class ArtifactsResponse(ContractModel):
+    job_id: str
+    artifacts: ArtifactPaths
+    prompt_versions: PromptVersions
+    warnings: list[JobWarning] | None = None
