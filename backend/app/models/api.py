@@ -31,6 +31,10 @@ class ApiError(ContractModel):
     retriable: bool
 
 
+class ApiErrorResponse(ContractModel):
+    error: ApiError
+
+
 class JobWarning(ContractModel):
     code: str
     message: str

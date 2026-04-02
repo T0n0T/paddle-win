@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.core.config import Settings
 from app.models.api import (
     ApiError,
+    ApiErrorResponse,
     ArtifactPaths,
     ArtifactsResponse,
     CreateJobResponse,
@@ -19,7 +20,6 @@ from app.models.api import (
 from app.models.formily import (
     FormilySchemaEnvelope,
     FormilySchemaNode,
-    FormilySchemaResponse,
     FormilyXData,
 )
 from app.models.semantic import (
@@ -157,10 +157,10 @@ def test_formily_envelope_preserves_field_warnings_in_x_data():
     ] == ["low_contrast"]
 
 
-def test_formily_schema_response_keeps_top_level_job_warnings_separate():
-    response = FormilySchemaResponse(
+def test_result_response_keeps_top_level_job_warnings_separate():
+    response = ResultResponse(
         job_id="job_123",
-        status="succeeded",
+        status=JobStatus.SUCCEEDED,
         overall_confidence=0.91,
         schema=FormilySchemaNode(
             type="object",
@@ -196,6 +196,24 @@ def test_formily_schema_response_keeps_top_level_job_warnings_separate():
         ]
         == ["field_warning"]
     )
+
+
+def test_error_response_wraps_api_error_payload_exactly():
+    response = ApiErrorResponse(
+        error=ApiError(
+            code="unsupported_media_type",
+            message="Only JPEG, PNG, and WEBP are accepted in the MVP.",
+            retriable=False,
+        )
+    )
+
+    assert response.model_dump() == {
+        "error": {
+            "code": "unsupported_media_type",
+            "message": "Only JPEG, PNG, and WEBP are accepted in the MVP.",
+            "retriable": False,
+        }
+    }
 
 
 def test_api_response_models_capture_exact_contract_shapes():
@@ -272,6 +290,13 @@ def test_api_response_models_capture_exact_contract_shapes():
             "message": "Model output failed structured validation after retry.",
             "retriable": True,
         },
+    }
+    assert ApiErrorResponse(error=failed_status.error).model_dump() == {
+        "error": {
+            "code": "semantic_output_invalid",
+            "message": "Model output failed structured validation after retry.",
+            "retriable": True,
+        }
     }
     assert result.model_dump(by_alias=True)["overall_confidence"] == 0.91
     assert artifacts.model_dump() == {

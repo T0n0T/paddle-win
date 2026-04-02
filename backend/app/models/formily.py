@@ -32,12 +32,4 @@ class FormilySchemaEnvelope(ContractModel):
     schema_: FormilySchemaNode = Field(alias="schema")
 
 
-class FormilySchemaResponse(ContractModel):
-    job_id: str
-    status: Literal["succeeded"]
-    overall_confidence: float
-    schema_: FormilySchemaNode = Field(alias="schema")
-    warnings: list[dict[str, str]] | None = None
-
-
 FormilySchemaNode.model_rebuild()
