@@ -2,7 +2,7 @@
 
 ## Run locally
 ```bash
-uv run --project backend uvicorn app.main:app --reload
+uv run --project backend uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8011
 ```
 
 ## Test
