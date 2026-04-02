@@ -81,6 +81,28 @@ Filled values are included directly in the schema as field defaults so a rendere
 
 Per-field metadata such as confidence, source references, and warnings are included in field metadata, not exposed as separate top-level business objects.
 
+### Canonical Schema Conventions
+
+To avoid compiler and frontend divergence, the MVP uses these exact conventions:
+
+- All extracted values are stored in the schema node's `default` property. Formily maps `default` to the field's initial value.
+- All defaults must stay JSON-serializable.
+- `string` fields use a string `default`
+- `textarea` fields use a string `default`
+- `boolean` fields use a boolean `default`
+- `array-table` fields store the entire row list on the array field's `default`, not separately on each cell field
+- Datetime values are normalized to ISO-like strings with timezone information where possible, for example `2016-07-24T15:30:00+08:00`
+
+Because the output artifact is JSON, datetime defaults are stored as strings. The frontend preview adapter is responsible for hydrating those strings into renderer-specific date objects when needed by `DatePicker`.
+
+Per-field metadata is attached under `x-data` with at least:
+
+- `confidence`
+- `source_boxes`
+- `section_key`
+- `field_role`
+- `warnings`
+
 ## Architecture
 
 ### Top-Level Components
@@ -187,6 +209,162 @@ Recognized values are written into field defaults so a consumer can immediately 
 
 Field metadata such as confidence and source evidence are attached via Formily field metadata, for example in `x-data`.
 
+### Deterministic Field Key Strategy
+
+Field keys must be stable across retries on the same source image unless the semantic interpretation changes materially.
+
+Rules:
+
+1. Prefer semantic role keys when available, for example `work_leader`, `team_leader`, `plan_start_at`
+2. Prefix ambiguous repeated fields with the section key, for example `safety_measures__executor`
+3. When no semantic role is available, fall back to `section_key__field_<ordinal>`
+4. If a collision still occurs, append a deterministic suffix derived from layout order, not randomness
+
+This key strategy is required so downstream Formily consumers do not see meaningless key churn between runs.
+
+### Canonical Minimal Formily Shapes
+
+The schema compiler targets the following minimal shapes.
+
+#### Simple Scalar Fields
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "basic_info": {
+      "type": "void",
+      "x-component": "FormGrid",
+      "x-component-props": {
+        "maxColumns": 2,
+        "minColumns": 1
+      },
+      "properties": {
+        "work_leader": {
+          "type": "string",
+          "title": "工作负责人",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "闫丽亚",
+          "x-data": {
+            "confidence": 0.98,
+            "section_key": "basic_info",
+            "field_role": "person_name",
+            "source_boxes": ["box_12", "box_13"],
+            "warnings": []
+          }
+        },
+        "planned_start_at": {
+          "type": "string",
+          "format": "date-time",
+          "title": "计划工作开始时间",
+          "x-decorator": "FormItem",
+          "x-component": "DatePicker",
+          "x-component-props": {
+            "showTime": true
+          },
+          "default": "2016-07-24T15:30:00+08:00",
+          "x-data": {
+            "confidence": 0.91,
+            "section_key": "basic_info",
+            "field_role": "datetime_start",
+            "source_boxes": ["box_41"],
+            "warnings": []
+          }
+        },
+        "safety_note": {
+          "type": "string",
+          "title": "安全措施",
+          "x-decorator": "FormItem",
+          "x-component": "Input.TextArea",
+          "default": "断开10kV白线55厂两线XX杆大段湾配变台区0.4kV大段湾出线剩余电流动作开关",
+          "x-data": {
+            "confidence": 0.87,
+            "section_key": "safety_measures",
+            "field_role": "long_text",
+            "source_boxes": ["box_58", "box_59"],
+            "warnings": []
+          }
+        },
+        "executed": {
+          "type": "boolean",
+          "title": "已执行",
+          "x-decorator": "FormItem",
+          "x-component": "Checkbox",
+          "default": true,
+          "x-data": {
+            "confidence": 0.89,
+            "section_key": "safety_measures",
+            "field_role": "status_checkbox",
+            "source_boxes": ["box_61"],
+            "warnings": []
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### ArrayTable
+
+`ArrayTable` always compiles as an object-array field. The recognized rows live on the array field's `default`.
+
+```json
+{
+  "type": "array",
+  "title": "工作任务",
+  "x-decorator": "FormItem",
+  "x-component": "ArrayTable",
+  "default": [
+    {
+      "location_or_equipment": "10kV白55厂岗线XX杆大段湾台区",
+      "work_content": "安装关口表"
+    }
+  ],
+  "x-data": {
+    "confidence": 0.93,
+    "section_key": "work_items",
+    "field_role": "table",
+    "source_boxes": ["table_1"],
+    "warnings": []
+  },
+  "items": {
+    "type": "object",
+    "properties": {
+      "location_or_equipment_column": {
+        "type": "void",
+        "x-component": "ArrayTable.Column",
+        "x-component-props": {
+          "title": "工作地点或设备"
+        },
+        "properties": {
+          "location_or_equipment": {
+            "type": "string",
+            "x-decorator": "FormItem",
+            "x-component": "Input"
+          }
+        }
+      },
+      "work_content_column": {
+        "type": "void",
+        "x-component": "ArrayTable.Column",
+        "x-component-props": {
+          "title": "工作内容"
+        },
+        "properties": {
+          "work_content": {
+            "type": "string",
+            "x-decorator": "FormItem",
+            "x-component": "Input"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ## API Design
 
 The backend exposes a minimal asynchronous job interface.
@@ -195,10 +373,39 @@ The backend exposes a minimal asynchronous job interface.
 
 Creates a recognition job from one uploaded image.
 
+Request contract:
+
+- content type: `multipart/form-data`
+- file field name: `file`
+- accepted MIME types in the MVP:
+  - `image/jpeg`
+  - `image/png`
+  - `image/webp`
+- maximum upload size in the MVP: 15 MB
+
 Response:
 
 - `job_id`
 - initial status
+
+Error responses:
+
+- `400` invalid multipart payload
+- `413` file too large
+- `415` unsupported media type
+- `422` image cannot be decoded or fails validation
+
+Error shape:
+
+```json
+{
+  "error": {
+    "code": "unsupported_media_type",
+    "message": "Only JPEG, PNG, and WEBP are accepted in the MVP.",
+    "retriable": false
+  }
+}
+```
 
 ### `GET /api/jobs/{job_id}`
 
@@ -216,6 +423,22 @@ Returns:
   - `persist_result`
 - elapsed metadata
 - warning summary if available
+- error summary if the job is failed
+
+Failed-job shape:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "failed",
+  "current_stage": "semantic_enrich",
+  "error": {
+    "code": "semantic_output_invalid",
+    "message": "Model output failed structured validation after retry.",
+    "retriable": true
+  }
+}
+```
 
 ### `GET /api/jobs/{job_id}/result`
 
