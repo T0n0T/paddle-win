@@ -6,7 +6,7 @@ Status: Approved for planning review
 
 ## Goal
 
-Build an MVP that recognizes a single-page Chinese filled form image, uses PaddleOCR's general table recognition pipeline as the layout extraction base, strengthens semantics with an OpenAI multimodal model coordinated through LangGraph and LangChain, and returns a Formily Schema JSON file that can be consumed directly by a `@formily/antd-v5` editor or renderer.
+Build an MVP that recognizes a single-page Chinese filled form image, uses PaddleOCR's official General Table Recognition V2 pipeline as the layout extraction base, strengthens semantics with an OpenAI multimodal model coordinated through LangGraph and LangChain, and returns a Formily Schema JSON file that can be consumed directly by a `@formily/antd-v5` editor or renderer.
 
 The MVP is optimized for semi-structured Chinese forms similar to work tickets: title blocks, underlined fill-in areas, partial tables, long instructional text, date/time ranges, and checkbox-like execution markers.
 
@@ -17,7 +17,7 @@ The MVP is optimized for semi-structured Chinese forms similar to work tickets: 
 - Single-image recognition jobs
 - Chinese filled forms as primary input
 - Scan-quality images as the main target, with tolerance for mild skew, shadow, and imperfect crops
-- Layout extraction with PaddleOCR Table Recognition V2
+- Layout extraction with PaddleOCR official General Table Recognition V2 pipeline
 - Semantic enrichment with OpenAI multimodal reasoning
 - LangGraph-based workflow orchestration
 - LangChain-based model abstraction, prompt management, and structured outputs
@@ -105,13 +105,15 @@ Per-field metadata is attached under `x-data` with at least:
 - `field_role`
 - `warnings`
 
+`x-data.source_boxes` stores Layer 1 `EvidenceRef.source_id` values only. Bounding boxes and source typing remain in the internal semantic model and artifact files.
+
 ## Architecture
 
 ### Top-Level Components
 
 1. Next.js frontend
 2. FastAPI backend
-3. PaddleOCR Table Recognition V2 pipeline
+3. PaddleOCR official `table_recognition_v2` / `TableRecognitionPipelineV2` pipeline
 4. LangGraph workflow runtime
 5. LangChain model and prompt layer
 6. OpenAI multimodal model client via the OpenAI SDK
@@ -131,7 +133,7 @@ This is not a single linear chain. The workflow needs explicit state, validation
 
 1. Frontend uploads a single image and creates an async job
 2. FastAPI stores the source image and starts the recognition graph
-3. PaddleOCR extracts layout and table structure
+3. PaddleOCR official General Table Recognition V2 pipeline extracts layout and table structure
 4. Backend normalizes OCR output into an internal layout skeleton
 5. OpenAI multimodal reasoning enriches the skeleton into a semantic form model
 6. Backend validates the semantic form model
@@ -145,6 +147,8 @@ The external API returns only Formily Schema JSON, but the backend uses three in
 ### Layer 1: OCR Layout Skeleton
 
 This layer preserves geometry and reading order, not business meaning.
+
+It is derived specifically from PaddleOCR's official General Table Recognition V2 pipeline output, not from a lower-level substitute entrypoint.
 
 It includes:
 
@@ -355,6 +359,8 @@ Recognized values are written into field defaults so a consumer can immediately 
 
 Field metadata such as confidence and source evidence are attached via Formily field metadata, for example in `x-data`.
 
+`overall_confidence` in API responses is computed as the arithmetic mean of all compiled field confidences after validation and any degradation.
+
 ### Deterministic Field Key Strategy
 
 Field keys must be stable across retries on the same source image unless the semantic interpretation changes materially.
@@ -400,7 +406,7 @@ The schema compiler targets the following minimal shapes.
             "warnings": []
           }
         },
-        "planned_start_at": {
+        "plan_start_at": {
           "type": "string",
           "format": "date-time",
           "title": "计划工作开始时间",
@@ -654,6 +660,8 @@ Development-only endpoint for inspecting intermediate outputs:
 
 This endpoint is available only when `ENABLE_DEV_ARTIFACTS=true`.
 
+Artifacts are retained on a best-effort basis for local development and may be manually cleaned up. Long-term retention policy is outside the MVP.
+
 Success response example:
 
 ```json
@@ -705,7 +713,7 @@ The state stores at minimum:
 
 #### `ocr_table`
 
-- invoke PaddleOCR Table Recognition V2
+- invoke PaddleOCR official General Table Recognition V2 pipeline via `table_recognition_v2` / `TableRecognitionPipelineV2`
 - persist raw OCR outputs
 
 #### `normalize_layout`
