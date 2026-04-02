@@ -4,10 +4,10 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, StrictBool, StrictInt, StrictStr, field_validator, model_validator
 
 from app.models.formily import FormilySchemaNode
-from app.models.semantic import ContractModel
+from app.models.semantic import ConfidenceScore, ContractModel
 
 
 class JobStatus(str, Enum):
@@ -28,9 +28,9 @@ class JobStage(str, Enum):
 
 
 class ApiError(ContractModel):
-    code: str
-    message: str
-    retriable: bool
+    code: StrictStr
+    message: StrictStr
+    retriable: StrictBool
 
 
 class ApiErrorResponse(ContractModel):
@@ -38,15 +38,15 @@ class ApiErrorResponse(ContractModel):
 
 
 class JobWarning(ContractModel):
-    code: str
-    message: str
+    code: StrictStr
+    message: StrictStr
 
 
 class CreateJobResponse(ContractModel):
-    job_id: str
+    job_id: StrictStr
     status: Literal[JobStatus.QUEUED]
     current_stage: Literal[JobStage.INGEST]
-    created_at: str
+    created_at: StrictStr
 
     @field_validator("created_at")
     @classmethod
@@ -59,10 +59,10 @@ class CreateJobResponse(ContractModel):
 
 
 class JobStatusResponse(ContractModel):
-    job_id: str
+    job_id: StrictStr
     status: JobStatus
     current_stage: JobStage
-    elapsed_ms: int | None = None
+    elapsed_ms: StrictInt | None = None
     warnings: list[JobWarning] | None = None
     error: ApiError | None = None
 
@@ -85,9 +85,9 @@ class JobStatusResponse(ContractModel):
 
 
 class ResultResponse(ContractModel):
-    job_id: str
+    job_id: StrictStr
     status: JobStatus
-    overall_confidence: float
+    overall_confidence: ConfidenceScore
     schema_: FormilySchemaNode = Field(alias="schema")
     warnings: list[JobWarning]
 
@@ -99,20 +99,20 @@ class ResultResponse(ContractModel):
 
 
 class ArtifactPaths(ContractModel):
-    source_image: str
-    ocr_json: str
-    layout_skeleton: str
-    semantic_form_model: str
-    formily_schema: str
+    source_image: StrictStr
+    ocr_json: StrictStr
+    layout_skeleton: StrictStr
+    semantic_form_model: StrictStr
+    formily_schema: StrictStr
 
 
 class PromptVersions(ContractModel):
-    semantic_enrich: str
-    validate_schema_intent: str
+    semantic_enrich: StrictStr
+    validate_schema_intent: StrictStr
 
 
 class ArtifactsResponse(ContractModel):
-    job_id: str
+    job_id: StrictStr
     artifacts: ArtifactPaths
     prompt_versions: PromptVersions
     warnings: list[JobWarning]

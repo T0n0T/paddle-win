@@ -80,6 +80,20 @@ def test_boolean_field_rejects_string_value():
         )
 
 
+def test_boolean_field_rejects_integer_coercion():
+    with pytest.raises(ValidationError):
+        SemanticField(
+            key="requires_outage",
+            title="是否停电",
+            kind="boolean",
+            section_key="safety",
+            field_role="checkbox",
+            value=1,
+            confidence=0.91,
+            evidence=[],
+        )
+
+
 def test_array_table_field_rejects_scalar_value():
     with pytest.raises(ValidationError, match="array-table fields require a list value"):
         SemanticField(
@@ -94,6 +108,34 @@ def test_array_table_field_rejects_scalar_value():
             value="安装关口表",
             confidence=0.93,
             evidence=[],
+        )
+
+
+def test_evidence_ref_rejects_string_page_number():
+    with pytest.raises(ValidationError):
+        EvidenceRef(
+            source_id="box_12",
+            source_type="text_box",
+            bbox=[120.0, 88.0, 210.0, 114.0],
+            page="2",
+        )
+
+
+def test_evidence_ref_rejects_non_rectangular_bbox():
+    with pytest.raises(ValidationError, match="bbox must contain exactly 4 coordinates"):
+        EvidenceRef(
+            source_id="box_12",
+            source_type="text_box",
+            bbox=[120.0, 88.0, 210.0],
+        )
+
+
+def test_evidence_ref_rejects_string_bbox_coordinates():
+    with pytest.raises(ValidationError):
+        EvidenceRef(
+            source_id="box_12",
+            source_type="text_box",
+            bbox=["120.0", "88.0", "210.0", "114.0"],
         )
 
 
@@ -151,6 +193,191 @@ def test_semantic_form_model_serializes_strict_contract():
 
     assert dumped["fields"][0]["evidence"][0]["page"] == 1
     assert dumped["warnings"][0]["related_field_keys"] == ["work_leader"]
+
+
+def test_semantic_form_model_rejects_field_with_unknown_section():
+    with pytest.raises(ValidationError, match="references unknown section"):
+        SemanticFormModel(
+            form_meta=FormMeta(title="配电第一种工作票"),
+            sections=[
+                SemanticSection(
+                    key="basic_info",
+                    title="基本信息",
+                    field_keys=["work_leader"],
+                    order=1,
+                    section_type="basic",
+                )
+            ],
+            fields=[
+                SemanticField(
+                    key="work_leader",
+                    title="工作负责人",
+                    kind="string",
+                    section_key="missing_section",
+                    field_role="person_name",
+                    value="闫丽亚",
+                    confidence=0.98,
+                    evidence=[],
+                )
+            ],
+            layout_hints=LayoutHints(
+                section_order=["basic_info"],
+                preferred_columns={"basic_info": 2},
+                section_spans={"basic_info": "full"},
+            ),
+        )
+
+
+def test_semantic_form_model_rejects_duplicate_section_keys():
+    with pytest.raises(ValidationError, match="sections must use unique keys"):
+        SemanticFormModel(
+            form_meta=FormMeta(title="配电第一种工作票"),
+            sections=[
+                SemanticSection(
+                    key="basic_info",
+                    title="基本信息一",
+                    field_keys=[],
+                    order=1,
+                    section_type="basic",
+                ),
+                SemanticSection(
+                    key="basic_info",
+                    title="基本信息二",
+                    field_keys=[],
+                    order=2,
+                    section_type="group",
+                ),
+            ],
+            fields=[],
+            layout_hints=LayoutHints(section_order=[], preferred_columns={}, section_spans={}),
+        )
+
+
+def test_semantic_form_model_rejects_duplicate_field_keys():
+    with pytest.raises(ValidationError, match="fields must use unique keys"):
+        SemanticFormModel(
+            form_meta=FormMeta(title="配电第一种工作票"),
+            sections=[
+                SemanticSection(
+                    key="basic_info",
+                    title="基本信息",
+                    field_keys=["work_leader"],
+                    order=1,
+                    section_type="basic",
+                )
+            ],
+            fields=[
+                SemanticField(
+                    key="work_leader",
+                    title="工作负责人",
+                    kind="string",
+                    section_key="basic_info",
+                    field_role="person_name",
+                    value="闫丽亚",
+                    confidence=0.98,
+                    evidence=[],
+                ),
+                SemanticField(
+                    key="work_leader",
+                    title="工作负责人副本",
+                    kind="string",
+                    section_key="basic_info",
+                    field_role="person_name",
+                    value="张三",
+                    confidence=0.92,
+                    evidence=[],
+                ),
+            ],
+            layout_hints=LayoutHints(
+                section_order=["basic_info"],
+                preferred_columns={"basic_info": 2},
+                section_spans={"basic_info": "full"},
+            ),
+        )
+
+
+def test_semantic_form_model_rejects_section_with_unknown_field_reference():
+    with pytest.raises(ValidationError, match="references unknown field"):
+        SemanticFormModel(
+            form_meta=FormMeta(title="配电第一种工作票"),
+            sections=[
+                SemanticSection(
+                    key="basic_info",
+                    title="基本信息",
+                    field_keys=["missing_field"],
+                    order=1,
+                    section_type="basic",
+                )
+            ],
+            fields=[],
+            layout_hints=LayoutHints(
+                section_order=["basic_info"],
+                preferred_columns={"basic_info": 2},
+                section_spans={"basic_info": "full"},
+            ),
+        )
+
+
+def test_semantic_form_model_rejects_section_field_owned_by_other_section():
+    with pytest.raises(ValidationError, match="references field work_leader owned by extra_info"):
+        SemanticFormModel(
+            form_meta=FormMeta(title="配电第一种工作票"),
+            sections=[
+                SemanticSection(
+                    key="basic_info",
+                    title="基本信息",
+                    field_keys=["work_leader"],
+                    order=1,
+                    section_type="basic",
+                ),
+                SemanticSection(
+                    key="extra_info",
+                    title="补充信息",
+                    field_keys=[],
+                    order=2,
+                    section_type="group",
+                ),
+            ],
+            fields=[
+                SemanticField(
+                    key="work_leader",
+                    title="工作负责人",
+                    kind="string",
+                    section_key="extra_info",
+                    field_role="person_name",
+                    value="闫丽亚",
+                    confidence=0.98,
+                    evidence=[],
+                )
+            ],
+            layout_hints=LayoutHints(
+                section_order=["basic_info", "extra_info"],
+                preferred_columns={"basic_info": 2, "extra_info": 1},
+                section_spans={"basic_info": "full", "extra_info": "left"},
+            ),
+        )
+
+
+def test_semantic_form_model_rejects_layout_hints_with_unknown_section():
+    with pytest.raises(ValidationError, match="layout_hints references unknown sections"):
+        SemanticFormModel(
+            form_meta=FormMeta(title="配电第一种工作票"),
+            sections=[
+                SemanticSection(
+                    key="basic_info",
+                    title="基本信息",
+                    field_keys=[],
+                    order=1,
+                    section_type="basic",
+                )
+            ],
+            fields=[],
+            layout_hints=LayoutHints(
+                section_order=["basic_info", "missing_section"],
+                preferred_columns={"basic_info": 2},
+                section_spans={"basic_info": "full"},
+            ),
+        )
 
 
 def test_formily_envelope_preserves_field_warnings_in_x_data():
@@ -274,6 +501,25 @@ def test_job_status_response_rejects_explicit_null_error_for_non_failed_status()
         )
 
 
+def test_job_status_response_requires_error_payload_for_failed_status():
+    with pytest.raises(ValidationError, match="failed job responses require an error payload"):
+        JobStatusResponse(
+            job_id="job_123",
+            status=JobStatus.FAILED,
+            current_stage=JobStage.SEMANTIC_ENRICH,
+        )
+
+
+def test_job_status_response_rejects_string_elapsed_ms():
+    with pytest.raises(ValidationError):
+        JobStatusResponse(
+            job_id="job_123",
+            status=JobStatus.RUNNING,
+            current_stage=JobStage.SEMANTIC_ENRICH,
+            elapsed_ms="5231",
+        )
+
+
 def test_create_job_response_rejects_non_initial_status():
     with pytest.raises(ValidationError):
         CreateJobResponse(
@@ -311,6 +557,60 @@ def test_result_response_requires_top_level_warnings():
             status=JobStatus.SUCCEEDED,
             overall_confidence=0.91,
             schema=FormilySchemaNode(type="object", properties={}),
+        )
+
+
+def test_result_response_rejects_out_of_range_confidence():
+    with pytest.raises(ValidationError):
+        ResultResponse(
+            job_id="job_123",
+            status=JobStatus.SUCCEEDED,
+            overall_confidence=1.2,
+            schema=FormilySchemaNode(type="object", properties={}),
+            warnings=[],
+        )
+
+
+def test_formily_string_node_rejects_array_default():
+    with pytest.raises(ValidationError, match="string schema nodes require a string default"):
+        FormilySchemaNode(type="string", default=[{"a": 1}])
+
+
+def test_formily_array_node_requires_items():
+    with pytest.raises(ValidationError, match="array schema nodes require items"):
+        FormilySchemaNode(type="array")
+
+
+def test_formily_array_node_rejects_properties():
+    with pytest.raises(ValidationError, match="array schema nodes do not support properties"):
+        FormilySchemaNode(
+            type="array",
+            items=FormilySchemaNode(type="object", properties={}),
+            properties={},
+        )
+
+
+def test_formily_array_node_rejects_default_items_that_do_not_match_item_schema():
+    with pytest.raises(ValidationError, match="default items must match the items schema"):
+        FormilySchemaNode(
+            type="array",
+            items=FormilySchemaNode(type="boolean"),
+            default=[{"unexpected": "dict"}],
+        )
+
+
+def test_formily_object_node_requires_properties():
+    with pytest.raises(ValidationError, match="object schema nodes require properties"):
+        FormilySchemaNode(type="object")
+
+
+def test_formily_x_data_rejects_out_of_range_confidence():
+    with pytest.raises(ValidationError):
+        FormilyXData(
+            confidence=-0.1,
+            source_boxes=["box_12"],
+            section_key="basic_info",
+            field_role="person_name",
         )
 
 
