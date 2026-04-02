@@ -1,0 +1,64 @@
+{
+  "input_path": "backend/tests/fixtures/forms/work-ticket.jpg",
+  "page_index": null,
+  "model_settings": {
+    "use_doc_preprocessor": true,
+    "use_layout_detection": true,
+    "use_ocr_model": true
+  },
+  "doc_preprocessor_res": {
+    "output_img_shape": [1126, 750]
+  },
+  "layout_det_res": {
+    "boxes": [
+      {
+        "label": "table",
+        "coordinate": [32.0, 250.0, 482.0, 368.0],
+        "score": 0.98
+      }
+    ]
+  },
+  "overall_ocr_res": {
+    "rec_texts": [
+      "配电第一种工作票",
+      "工作负责人",
+      "闫丽亚",
+      "√",
+      "□"
+    ],
+    "rec_scores": [0.99, 0.97, 0.96, 0.74, 0.63],
+    "rec_boxes": [
+      [120.0, 88.0, 420.0, 126.0],
+      [48.0, 168.0, 160.0, 204.0],
+      [188.0, 168.0, 292.0, 204.0],
+      [512.0, 458.0, 540.0, 486.0],
+      [512.0, 498.0, 540.0, 526.0]
+    ]
+  },
+  "table_res_list": [
+    {
+      "table_region_id": 1,
+      "cell_box_list": [
+        [32.0, 250.0, 252.0, 308.0],
+        [252.0, 250.0, 482.0, 308.0],
+        [32.0, 308.0, 252.0, 368.0],
+        [252.0, 308.0, 482.0, 368.0]
+      ],
+      "table_ocr_pred": {
+        "rec_texts": [
+          "工作内容",
+          "停电范围",
+          "安装关口表",
+          "一线一变"
+        ],
+        "rec_scores": [0.95, 0.95, 0.92, 0.91],
+        "rec_boxes": [
+          [32.0, 250.0, 252.0, 308.0],
+          [252.0, 250.0, 482.0, 308.0],
+          [32.0, 308.0, 252.0, 368.0],
+          [252.0, 308.0, 482.0, 368.0]
+        ]
+      }
+    }
+  ]
+}
