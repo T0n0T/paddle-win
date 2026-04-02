@@ -19,19 +19,20 @@ class PaddleTableV2Client:
         return self._pipeline
 
     def run(self, image_path: Path) -> dict[str, Any]:
-        predictions = iter(self._get_pipeline().predict(image_path))
+        predictions = iter(self._get_pipeline().predict(str(image_path)))
         try:
             prediction = next(predictions)
         except StopIteration as exc:
             raise ValueError("TableRecognitionPipelineV2 returned no predictions") from exc
-        if isinstance(prediction, dict):
-            return prediction
 
         if hasattr(prediction, "json"):
-            payload = prediction.json()
+            payload = prediction.json() if callable(prediction.json) else prediction.json
             if isinstance(payload, str):
                 return json.loads(payload)
             if isinstance(payload, dict):
-                return payload
+                return payload["res"] if isinstance(payload.get("res"), dict) else payload
+
+        if isinstance(prediction, dict):
+            return prediction["res"] if isinstance(prediction.get("res"), dict) else prediction
 
         raise TypeError("TableRecognitionPipelineV2 prediction must expose dict or json() payload")

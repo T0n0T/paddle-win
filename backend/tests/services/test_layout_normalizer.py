@@ -184,6 +184,125 @@ def test_paddle_table_v2_client_calls_official_pipeline(monkeypatch: pytest.Monk
     assert payload == {"page_index": None, "overall_ocr_res": {}, "table_res_list": []}
 
 
+def test_paddle_table_v2_client_passes_string_path_to_pipeline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    calls: list[str] = []
+
+    class FakePrediction:
+        def json(self) -> dict:
+            return {"page_index": None, "overall_ocr_res": {}, "table_res_list": []}
+
+    class FakePipeline:
+        def predict(self, image_path: str):
+            if not isinstance(image_path, str):
+                raise TypeError("image_path must be str")
+            calls.append(image_path)
+            return iter([FakePrediction()])
+
+    fake_module = ModuleType("paddleocr")
+    fake_module.TableRecognitionPipelineV2 = lambda: FakePipeline()
+    monkeypatch.setitem(sys.modules, "paddleocr", fake_module)
+
+    image_path = tmp_path / "sample.jpg"
+    image_path.write_bytes(b"fixture")
+
+    client = PaddleTableV2Client()
+    client.run(image_path)
+
+    assert calls == [str(image_path)]
+
+
+def test_paddle_table_v2_client_prefers_json_payload_over_dict_like_prediction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    class DictLikePrediction(dict):
+        def __init__(self):
+            super().__init__({"raw": object()})
+
+        def json(self) -> dict:
+            return {"page_index": None, "overall_ocr_res": {}, "table_res_list": []}
+
+    class FakePipeline:
+        def predict(self, image_path: str):
+            return iter([DictLikePrediction()])
+
+    fake_module = ModuleType("paddleocr")
+    fake_module.TableRecognitionPipelineV2 = lambda: FakePipeline()
+    monkeypatch.setitem(sys.modules, "paddleocr", fake_module)
+
+    image_path = tmp_path / "sample.jpg"
+    image_path.write_bytes(b"fixture")
+
+    client = PaddleTableV2Client()
+
+    assert client.run(image_path) == {
+        "page_index": None,
+        "overall_ocr_res": {},
+        "table_res_list": [],
+    }
+
+
+def test_paddle_table_v2_client_supports_json_attribute_payload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    class PredictionWithJsonAttribute:
+        def __init__(self) -> None:
+            self.json = {"page_index": None, "overall_ocr_res": {}, "table_res_list": []}
+
+    class FakePipeline:
+        def predict(self, image_path: str):
+            return iter([PredictionWithJsonAttribute()])
+
+    fake_module = ModuleType("paddleocr")
+    fake_module.TableRecognitionPipelineV2 = lambda: FakePipeline()
+    monkeypatch.setitem(sys.modules, "paddleocr", fake_module)
+
+    image_path = tmp_path / "sample.jpg"
+    image_path.write_bytes(b"fixture")
+
+    client = PaddleTableV2Client()
+
+    assert client.run(image_path) == {
+        "page_index": None,
+        "overall_ocr_res": {},
+        "table_res_list": [],
+    }
+
+
+def test_paddle_table_v2_client_unwraps_top_level_res_payload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    class FakePrediction:
+        def json(self) -> dict:
+            return {
+                "res": {
+                    "page_index": None,
+                    "overall_ocr_res": {},
+                    "table_res_list": [],
+                }
+            }
+
+    class FakePipeline:
+        def predict(self, image_path: str):
+            return iter([FakePrediction()])
+
+    fake_module = ModuleType("paddleocr")
+    fake_module.TableRecognitionPipelineV2 = lambda: FakePipeline()
+    monkeypatch.setitem(sys.modules, "paddleocr", fake_module)
+
+    image_path = tmp_path / "sample.jpg"
+    image_path.write_bytes(b"fixture")
+
+    client = PaddleTableV2Client()
+
+    assert client.run(image_path) == {
+        "page_index": None,
+        "overall_ocr_res": {},
+        "table_res_list": [],
+    }
+
+
 def test_paddle_table_v2_client_rejects_empty_predictions(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
