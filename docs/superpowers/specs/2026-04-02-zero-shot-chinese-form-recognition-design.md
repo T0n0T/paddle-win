@@ -348,6 +348,7 @@ Compilation rules:
 
 - root node uses `type: "object"`
 - major sections compile to `Void` containers
+- section containers are always present in the final schema; the MVP does not support a flat root-field mode
 - layout uses coarse-grained containers such as `FormGrid`
 - text fields map to `Input`
 - long text maps to `Input.TextArea`
@@ -634,12 +635,25 @@ Success response example:
   "schema": {
     "type": "object",
     "properties": {
-      "work_leader": {
-        "type": "string",
-        "title": "工作负责人",
-        "x-decorator": "FormItem",
-        "x-component": "Input",
-        "default": "闫丽亚"
+      "basic_info": {
+        "type": "void",
+        "x-component": "FormGrid",
+        "properties": {
+          "work_leader": {
+            "type": "string",
+            "title": "工作负责人",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "default": "闫丽亚",
+            "x-data": {
+              "confidence": 0.98,
+              "source_boxes": ["box_12"],
+              "section_key": "basic_info",
+              "field_role": "person_name",
+              "warnings": []
+            }
+          }
+        }
       }
     }
   },
@@ -869,7 +883,6 @@ These are not unresolved product questions. They are implementation details inte
 - exact artifact storage mechanism
 - exact queue/background execution primitive
 - exact OpenAI model version
-- exact schema metadata shape under `x-data`
 - exact frontend preview library wiring for Formily
 
 ## Summary
