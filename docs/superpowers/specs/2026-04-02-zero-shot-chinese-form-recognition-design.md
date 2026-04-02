@@ -79,7 +79,7 @@ The schema prioritizes semantic correctness while preserving macro layout:
 
 Filled values are included directly in the schema as field defaults so a renderer can immediately show a prefilled form.
 
-Per-field metadata such as confidence, source references, and warnings are included in field metadata, not exposed as separate top-level business objects.
+Per-field metadata such as confidence, source references, and field-local warnings are included in field metadata. Job-level warnings and aggregate confidence are returned alongside the schema in API responses.
 
 ### Canonical Schema Conventions
 
@@ -223,6 +223,14 @@ class LayoutHints(BaseModel):
     section_spans: dict[str, Literal["full", "left", "right", "table"]]
 
 
+class TableColumnSpec(BaseModel):
+    key: str
+    title: str
+    kind: Literal["string", "datetime", "textarea", "boolean"] = "string"
+    order: int
+    required: bool = False
+
+
 class SemanticField(BaseModel):
     key: str
     title: str
@@ -230,6 +238,7 @@ class SemanticField(BaseModel):
     section_key: str
     field_role: str
     value: str | bool | list[dict[str, object]] | None
+    table_columns: list[TableColumnSpec] | None = None
     confidence: float
     evidence: list[EvidenceRef]
     warnings: list[str] = []
@@ -307,6 +316,22 @@ Canonical JSON example:
       "kind": "array-table",
       "section_key": "work_items",
       "field_role": "table",
+      "table_columns": [
+        {
+          "key": "location_or_equipment",
+          "title": "工作地点或设备",
+          "kind": "string",
+          "order": 1,
+          "required": false
+        },
+        {
+          "key": "work_content",
+          "title": "工作内容",
+          "kind": "string",
+          "order": 2,
+          "required": false
+        }
+      ],
       "value": [
         {
           "location_or_equipment": "10kV白55厂岗线XX杆大段湾台区",
@@ -361,6 +386,10 @@ Recognized values are written into field defaults so a consumer can immediately 
 Field metadata such as confidence and source evidence are attached via Formily field metadata, for example in `x-data`.
 
 `overall_confidence` in API responses is computed as the arithmetic mean of all compiled field confidences after validation and any degradation.
+
+For `array-table` fields, `SemanticField.table_columns` is the canonical source for generating `ArrayTable.Column` nodes. The compiler must not infer columns from row dictionaries alone.
+
+Top-level API `warnings` are job-level warnings about the whole recognition result. Field-level warnings remain attached to each field under `x-data.warnings`.
 
 ### Deterministic Field Key Strategy
 
