@@ -95,6 +95,8 @@ To avoid compiler and frontend divergence, the MVP uses these exact conventions:
 
 Because the output artifact is JSON, datetime defaults are stored as strings. The frontend preview adapter is responsible for hydrating those strings into renderer-specific date objects when needed by `DatePicker`.
 
+If the source document does not expose timezone information, the MVP normalizes datetimes using `+08:00`. This matches the initial target document domain and keeps the output deterministic.
+
 Per-field metadata is attached under `x-data` with at least:
 
 - `confidence`
@@ -189,6 +191,150 @@ Allowed field kinds in the MVP:
 - `textarea`
 - `boolean`
 - `array-table`
+
+### Strict Semantic Model Contract
+
+The semantic model is a strict typed contract between `semantic_enrich`, `validate_schema_intent`, and `compile_formily`.
+
+Pydantic-style shape:
+
+```python
+class EvidenceRef(BaseModel):
+    source_id: str
+    source_type: Literal["text_box", "table_cell", "table_region", "checkbox_region", "image_region"]
+    bbox: list[float]
+    page: int = 1
+
+
+class SemanticWarning(BaseModel):
+    code: str
+    message: str
+    severity: Literal["low", "medium", "high"]
+    related_field_keys: list[str] = []
+
+
+class LayoutHints(BaseModel):
+    section_order: list[str]
+    preferred_columns: dict[str, int]
+    section_spans: dict[str, Literal["full", "left", "right", "table"]]
+
+
+class SemanticField(BaseModel):
+    key: str
+    title: str
+    kind: Literal["string", "datetime", "textarea", "boolean", "array-table"]
+    section_key: str
+    field_role: str
+    value: str | bool | list[dict[str, object]] | None
+    confidence: float
+    evidence: list[EvidenceRef]
+    warnings: list[str] = []
+
+
+class SemanticSection(BaseModel):
+    key: str
+    title: str
+    field_keys: list[str]
+    order: int
+    section_type: Literal["basic", "group", "table", "long_text"]
+
+
+class FormMeta(BaseModel):
+    title: str | None = None
+    document_type: str | None = None
+    document_number: str | None = None
+
+
+class SemanticFormModel(BaseModel):
+    form_meta: FormMeta
+    sections: list[SemanticSection]
+    fields: list[SemanticField]
+    layout_hints: LayoutHints
+    warnings: list[SemanticWarning]
+```
+
+Canonical JSON example:
+
+```json
+{
+  "form_meta": {
+    "title": "配电第一种工作票",
+    "document_type": "电力工作票",
+    "document_number": "2017070007"
+  },
+  "sections": [
+    {
+      "key": "basic_info",
+      "title": "基本信息",
+      "field_keys": ["work_leader", "team_leader", "plan_start_at", "plan_end_at"],
+      "order": 1,
+      "section_type": "basic"
+    },
+    {
+      "key": "work_items",
+      "title": "工作任务",
+      "field_keys": ["work_items_table"],
+      "order": 2,
+      "section_type": "table"
+    }
+  ],
+  "fields": [
+    {
+      "key": "work_leader",
+      "title": "工作负责人",
+      "kind": "string",
+      "section_key": "basic_info",
+      "field_role": "person_name",
+      "value": "闫丽亚",
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "source_id": "box_12",
+          "source_type": "text_box",
+          "bbox": [120.0, 88.0, 210.0, 114.0],
+          "page": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "key": "work_items_table",
+      "title": "工作任务",
+      "kind": "array-table",
+      "section_key": "work_items",
+      "field_role": "table",
+      "value": [
+        {
+          "location_or_equipment": "10kV白55厂岗线XX杆大段湾台区",
+          "work_content": "安装关口表"
+        }
+      ],
+      "confidence": 0.93,
+      "evidence": [
+        {
+          "source_id": "table_1",
+          "source_type": "table_region",
+          "bbox": [32.0, 250.0, 482.0, 368.0],
+          "page": 1
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "layout_hints": {
+    "section_order": ["basic_info", "work_items"],
+    "preferred_columns": {
+      "basic_info": 2,
+      "work_items": 1
+    },
+    "section_spans": {
+      "basic_info": "full",
+      "work_items": "table"
+    }
+  },
+  "warnings": []
+}
+```
 
 ### Layer 3: Formily Schema
 
@@ -388,6 +534,17 @@ Response:
 - `job_id`
 - initial status
 
+Success response example:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "queued",
+  "current_stage": "ingest",
+  "created_at": "2026-04-02T20:10:00+08:00"
+}
+```
+
 Error responses:
 
 - `400` invalid multipart payload
@@ -425,6 +582,23 @@ Returns:
 - warning summary if available
 - error summary if the job is failed
 
+Success response example:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "running",
+  "current_stage": "semantic_enrich",
+  "elapsed_ms": 5231,
+  "warnings": [
+    {
+      "code": "low_confidence_checkbox",
+      "message": "One checkbox candidate remains uncertain."
+    }
+  ]
+}
+```
+
 Failed-job shape:
 
 ```json
@@ -444,6 +618,29 @@ Failed-job shape:
 
 Returns the final Formily Schema JSON when the job succeeds.
 
+Success response example:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "succeeded",
+  "overall_confidence": 0.91,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "work_leader": {
+        "type": "string",
+        "title": "工作负责人",
+        "x-decorator": "FormItem",
+        "x-component": "Input",
+        "default": "闫丽亚"
+      }
+    }
+  },
+  "warnings": []
+}
+```
+
 ### `GET /api/jobs/{job_id}/artifacts`
 
 Development-only endpoint for inspecting intermediate outputs:
@@ -454,6 +651,28 @@ Development-only endpoint for inspecting intermediate outputs:
 - final schema
 - warnings
 - prompt version references
+
+This endpoint is available only when `ENABLE_DEV_ARTIFACTS=true`.
+
+Success response example:
+
+```json
+{
+  "job_id": "job_123",
+  "artifacts": {
+    "source_image": "/artifacts/job_123/source.jpg",
+    "ocr_json": "/artifacts/job_123/ocr.json",
+    "layout_skeleton": "/artifacts/job_123/layout.json",
+    "semantic_form_model": "/artifacts/job_123/semantic.json",
+    "formily_schema": "/artifacts/job_123/schema.json"
+  },
+  "prompt_versions": {
+    "semantic_enrich": "sem_v1_draft",
+    "validate_schema_intent": "val_v1"
+  },
+  "warnings": []
+}
+```
 
 ## LangGraph Workflow
 
