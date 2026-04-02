@@ -242,6 +242,44 @@ def test_job_status_response_rejects_explicit_null_error_for_non_failed_status()
         )
 
 
+def test_create_job_response_rejects_non_initial_status():
+    with pytest.raises(ValidationError):
+        CreateJobResponse(
+            job_id="job_123",
+            status=JobStatus.RUNNING,
+            current_stage=JobStage.INGEST,
+            created_at="2026-04-02T20:10:00+08:00",
+        )
+
+
+def test_result_response_requires_top_level_warnings():
+    with pytest.raises(ValidationError):
+        ResultResponse(
+            job_id="job_123",
+            status=JobStatus.SUCCEEDED,
+            overall_confidence=0.91,
+            schema=FormilySchemaNode(type="object", properties={}),
+        )
+
+
+def test_artifacts_response_requires_top_level_warnings():
+    with pytest.raises(ValidationError):
+        ArtifactsResponse(
+            job_id="job_123",
+            artifacts=ArtifactPaths(
+                source_image="/artifacts/job_123/source.jpg",
+                ocr_json="/artifacts/job_123/ocr.json",
+                layout_skeleton="/artifacts/job_123/layout.json",
+                semantic_form_model="/artifacts/job_123/semantic.json",
+                formily_schema="/artifacts/job_123/schema.json",
+            ),
+            prompt_versions=PromptVersions(
+                semantic_enrich="sem_v1_draft",
+                validate_schema_intent="val_v1",
+            ),
+        )
+
+
 def test_api_response_models_capture_exact_contract_shapes():
     create_job = CreateJobResponse(
         job_id="job_123",

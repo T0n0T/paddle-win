@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -42,7 +43,7 @@ class JobWarning(ContractModel):
 
 class CreateJobResponse(ContractModel):
     job_id: str
-    status: JobStatus
+    status: Literal[JobStatus.QUEUED]
     current_stage: JobStage
     created_at: str
 
@@ -78,7 +79,7 @@ class ResultResponse(ContractModel):
     status: JobStatus
     overall_confidence: float
     schema_: FormilySchemaNode = Field(alias="schema")
-    warnings: list[JobWarning] | None = None
+    warnings: list[JobWarning]
 
     @model_validator(mode="after")
     def validate_result_status(self) -> "ResultResponse":
@@ -104,4 +105,4 @@ class ArtifactsResponse(ContractModel):
     job_id: str
     artifacts: ArtifactPaths
     prompt_versions: PromptVersions
-    warnings: list[JobWarning] | None = None
+    warnings: list[JobWarning]
