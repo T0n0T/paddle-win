@@ -230,6 +230,18 @@ def test_job_status_response_rejects_error_payload_for_non_failed_status():
         )
 
 
+def test_job_status_response_rejects_explicit_null_error_for_non_failed_status():
+    with pytest.raises(ValidationError, match="only failed job responses may include an error payload"):
+        JobStatusResponse.model_validate(
+            {
+                "job_id": "job_123",
+                "status": "running",
+                "current_stage": "semantic_enrich",
+                "error": None,
+            }
+        )
+
+
 def test_api_response_models_capture_exact_contract_shapes():
     create_job = CreateJobResponse(
         job_id="job_123",

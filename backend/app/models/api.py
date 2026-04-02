@@ -55,12 +55,21 @@ class JobStatusResponse(ContractModel):
     warnings: list[JobWarning] | None = None
     error: ApiError | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def validate_error_field_presence(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+
+        status = data.get("status")
+        if status != JobStatus.FAILED and "error" in data:
+            raise ValueError("only failed job responses may include an error payload")
+        return data
+
     @model_validator(mode="after")
     def validate_failed_shape(self) -> "JobStatusResponse":
         if self.status == JobStatus.FAILED and self.error is None:
             raise ValueError("failed job responses require an error payload")
-        if self.status != JobStatus.FAILED and self.error is not None:
-            raise ValueError("only failed job responses may include an error payload")
         return self
 
 
