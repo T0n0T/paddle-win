@@ -65,6 +65,16 @@ class SemanticField(ContractModel):
             raise ValueError("array-table fields require table_columns metadata")
         if self.kind != "array-table" and self.table_columns is not None:
             raise ValueError("table_columns is only valid for array-table fields")
+        if self.kind == "boolean" and self.value is not None and not isinstance(self.value, bool):
+            raise ValueError("boolean fields require a boolean value")
+        if self.kind == "array-table" and self.value is not None and not isinstance(self.value, list):
+            raise ValueError("array-table fields require a list value")
+        if (
+            self.kind in {"string", "datetime", "textarea"}
+            and self.value is not None
+            and not isinstance(self.value, str)
+        ):
+            raise ValueError(f"{self.kind} fields require a string value")
         return self
 
 

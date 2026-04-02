@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.models.formily import FormilySchemaNode
 from app.models.semantic import ContractModel
@@ -44,8 +45,17 @@ class JobWarning(ContractModel):
 class CreateJobResponse(ContractModel):
     job_id: str
     status: Literal[JobStatus.QUEUED]
-    current_stage: JobStage
+    current_stage: Literal[JobStage.INGEST]
     created_at: str
+
+    @field_validator("created_at")
+    @classmethod
+    def validate_created_at(cls, value: str) -> str:
+        try:
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("created_at must be an ISO 8601 timestamp") from exc
+        return value
 
 
 class JobStatusResponse(ContractModel):

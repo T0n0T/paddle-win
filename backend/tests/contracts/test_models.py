@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+from pydantic_settings import SettingsConfigDict
 
 from app.core.config import Settings
 from app.models.api import (
@@ -60,6 +61,37 @@ def test_array_table_field_rejects_missing_column_metadata():
             section_key="work_items",
             field_role="table",
             value=[{"work_content": "安装关口表"}],
+            confidence=0.93,
+            evidence=[],
+        )
+
+
+def test_boolean_field_rejects_string_value():
+    with pytest.raises(ValidationError, match="boolean fields require a boolean value"):
+        SemanticField(
+            key="requires_outage",
+            title="是否停电",
+            kind="boolean",
+            section_key="safety",
+            field_role="checkbox",
+            value="true",
+            confidence=0.91,
+            evidence=[],
+        )
+
+
+def test_array_table_field_rejects_scalar_value():
+    with pytest.raises(ValidationError, match="array-table fields require a list value"):
+        SemanticField(
+            key="work_items_table",
+            title="工作任务",
+            kind="array-table",
+            section_key="work_items",
+            field_role="table",
+            table_columns=[
+                TableColumnSpec(key="work_content", title="工作内容", kind="string", order=1),
+            ],
+            value="安装关口表",
             confidence=0.93,
             evidence=[],
         )
@@ -252,6 +284,26 @@ def test_create_job_response_rejects_non_initial_status():
         )
 
 
+def test_create_job_response_rejects_non_initial_stage():
+    with pytest.raises(ValidationError):
+        CreateJobResponse(
+            job_id="job_123",
+            status=JobStatus.QUEUED,
+            current_stage=JobStage.SEMANTIC_ENRICH,
+            created_at="2026-04-02T20:10:00+08:00",
+        )
+
+
+def test_create_job_response_rejects_invalid_timestamp_shape():
+    with pytest.raises(ValidationError):
+        CreateJobResponse(
+            job_id="job_123",
+            status=JobStatus.QUEUED,
+            current_stage=JobStage.INGEST,
+            created_at="04/02/2026 20:10:00",
+        )
+
+
 def test_result_response_requires_top_level_warnings():
     with pytest.raises(ValidationError):
         ResultResponse(
@@ -392,4 +444,42 @@ def test_settings_load_expected_environment_fields(tmp_path: Path):
     assert settings.OPENAI_API_KEY == "test-key"
     assert settings.OPENAI_MODEL == "gpt-4.1-mini"
     assert settings.ARTIFACT_ROOT == artifact_root
+    assert settings.ENABLE_DEV_ARTIFACTS is True
+
+
+def test_settings_load_backend_env_file_from_project_root_layout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir(parents=True)
+    env_file = backend_dir / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "OPENAI_API_KEY=env-test-key",
+                "OPENAI_MODEL=gpt-4.1-mini",
+                f"ARTIFACT_ROOT={backend_dir / 'artifacts'}",
+                "ENABLE_DEV_ARTIFACTS=true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    TempSettings = type(
+        "TempSettings",
+        (Settings,),
+        {
+            "model_config": SettingsConfigDict(
+                env_file=env_file,
+                env_file_encoding="utf-8",
+                extra="ignore",
+                case_sensitive=True,
+            )
+        },
+    )
+
+    settings = TempSettings()
+
+    assert settings.OPENAI_API_KEY == "env-test-key"
+    assert settings.OPENAI_MODEL == "gpt-4.1-mini"
+    assert settings.ARTIFACT_ROOT == backend_dir / "artifacts"
     assert settings.ENABLE_DEV_ARTIFACTS is True
