@@ -21,3 +21,6 @@ dependencies = [
     "paddlex[ocr]",
     "typer",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

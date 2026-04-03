@@ -1,1 +1,1 @@
-"""Placeholder nodes package for future pipeline implementation."""
+"""流水线节点包占位入口。"""

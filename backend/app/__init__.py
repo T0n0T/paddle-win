@@ -1,1 +1,1 @@
-"""Lightweight marker for the backend.app package."""
+"""后端应用包入口标记。"""

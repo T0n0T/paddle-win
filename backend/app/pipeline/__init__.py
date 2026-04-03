@@ -1,1 +1,1 @@
-"""Minimal pipeline package to keep Task 1 safe."""
+"""任务流水线相关包入口。"""
