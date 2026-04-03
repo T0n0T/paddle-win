@@ -1,2 +1,1 @@
-from .config import Settings
-from .models import OCRBlock, PipelineState
+"""Lightweight marker for the backend.app package."""
