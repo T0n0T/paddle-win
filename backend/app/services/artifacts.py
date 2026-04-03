@@ -21,17 +21,26 @@ class ArtifactStore:
         return run_dir, copied_image
 
     def write_text(self, run_dir: Path, filename: str, content: str) -> Path:
-        path = run_dir / filename
+        path = self._resolve_run_path(run_dir, filename)
         path.write_text(content, encoding="utf-8")
         return path
 
     def write_bytes(self, run_dir: Path, filename: str, content: bytes) -> Path:
-        path = run_dir / filename
+        path = self._resolve_run_path(run_dir, filename)
         path.write_bytes(content)
         return path
 
     def latest_run(self) -> Path | None:
-        runs = sorted(path for path in self.run_root.iterdir() if path.is_dir())
+        runs = [path for path in self.run_root.iterdir() if path.is_dir()]
         if not runs:
             return None
-        return runs[-1]
+        return max(runs, key=lambda path: (path.stat().st_mtime_ns, path.name))
+
+    def _resolve_run_path(self, run_dir: Path, filename: str) -> Path:
+        base_dir = run_dir.resolve()
+        path = (base_dir / filename).resolve()
+        try:
+            path.relative_to(base_dir)
+        except ValueError as exc:
+            raise ValueError("artifact path must stay inside run_dir") from exc
+        return path

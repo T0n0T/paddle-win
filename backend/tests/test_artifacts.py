@@ -1,4 +1,7 @@
+import os
 from pathlib import Path
+
+import pytest
 
 from app.services.artifacts import ArtifactStore
 
@@ -41,7 +44,35 @@ def test_latest_run_returns_most_recent_directory(tmp_path: Path) -> None:
     assert store.latest_run() == second_dir
 
 
+def test_latest_run_prefers_newest_directory_mtime_over_name(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "runs")
+    older_dir = store.run_root / "20260403-000001-z"
+    newer_dir = store.run_root / "20260403-000001-a"
+    older_dir.mkdir(parents=True)
+    newer_dir.mkdir(parents=True)
+
+    os.utime(older_dir, ns=(1_000_000_000, 1_000_000_000))
+    os.utime(newer_dir, ns=(2_000_000_000, 2_000_000_000))
+
+    assert store.latest_run() == newer_dir
+
+
 def test_latest_run_returns_none_when_run_root_is_empty(tmp_path: Path) -> None:
     store = ArtifactStore(tmp_path / "runs")
 
     assert store.latest_run() is None
+
+
+def test_write_operations_reject_paths_outside_run_dir(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "runs")
+    run_dir = store.run_root / "20260403-000001-a"
+    run_dir.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="run_dir"):
+        store.write_text(run_dir, "../escaped.txt", "bad")
+
+    with pytest.raises(ValueError, match="run_dir"):
+        store.write_bytes(run_dir, "../escaped.bin", b"bad")
+
+    assert not (store.run_root / "escaped.txt").exists()
+    assert not (store.run_root / "escaped.bin").exists()
