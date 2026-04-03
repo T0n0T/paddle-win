@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from shutil import rmtree
 from shutil import copy2
 import re
 
@@ -21,9 +22,13 @@ class ArtifactStore:
         run_dir = self.run_root / run_id
         run_dir.mkdir(parents=True, exist_ok=False)
 
-        copied_image = run_dir / f"source{image_path.suffix.lower()}"
-        copy2(image_path, copied_image)
-        return run_dir, copied_image
+        try:
+            copied_image = run_dir / f"source{image_path.suffix.lower()}"
+            copy2(image_path, copied_image)
+            return run_dir, copied_image
+        except Exception:
+            rmtree(run_dir, ignore_errors=True)
+            raise
 
     def write_text(self, run_dir: Path, filename: str, content: str) -> Path:
         path = self._resolve_run_path(run_dir, filename)

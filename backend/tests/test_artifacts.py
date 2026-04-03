@@ -144,3 +144,20 @@ def test_write_operations_reject_run_dir_outside_run_root(tmp_path: Path) -> Non
 
     assert not (outside_run / "artifact.txt").exists()
     assert not (outside_run / "artifact.bin").exists()
+
+
+def test_create_run_cleans_up_failed_run_directory(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "runs")
+    image = tmp_path / "sample.png"
+    image.write_bytes(b"fake-image")
+
+    successful_run, _ = store.create_run(image)
+    before_runs = {path.name for path in store.run_root.iterdir()}
+
+    with pytest.raises(FileNotFoundError):
+        store.create_run(tmp_path / "missing.png")
+
+    after_runs = {path.name for path in store.run_root.iterdir()}
+
+    assert store.latest_run() == successful_run
+    assert after_runs == before_runs
