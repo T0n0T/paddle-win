@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+BACKEND_ROOT = ENV_FILE.parent
 
 
 class Settings(BaseSettings):
@@ -15,3 +16,10 @@ class Settings(BaseSettings):
     run_root: Path = Field(default=Path("runs"), validation_alias=AliasChoices("RUN_ROOT", "ARTIFACT_ROOT"))
     prompt_template_path: Path = Path("app/prompts/reconstruct_html.md")
     enable_dev_artifacts: bool = True
+
+    @field_validator("run_root", mode="after")
+    @classmethod
+    def resolve_run_root(cls, value: Path) -> Path:
+        if value.is_absolute():
+            return value
+        return BACKEND_ROOT / value
