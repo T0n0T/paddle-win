@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     )
 
     OPENAI_API_KEY: str
+    OPENAI_BASE_URL: str | None = None
     OPENAI_MODEL: str = "gpt-4.1-mini"
     ARTIFACT_ROOT: Path = Field(default=Path("artifacts"))
     ENABLE_DEV_ARTIFACTS: bool = False

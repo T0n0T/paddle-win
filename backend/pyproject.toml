@@ -9,7 +9,7 @@ dependencies = [
     "uvicorn",
     "pydantic",
     "pydantic-settings",
-    "httpx",
+    "httpx[socks]",
     "pytest",
     "python-multipart",
     "pillow",

@@ -736,12 +736,14 @@ def test_settings_load_expected_environment_fields(tmp_path: Path):
     artifact_root = tmp_path / "artifacts"
     settings = Settings(
         OPENAI_API_KEY="test-key",
+        OPENAI_BASE_URL="https://example.com/v1",
         OPENAI_MODEL="gpt-4.1-mini",
         ARTIFACT_ROOT=artifact_root,
         ENABLE_DEV_ARTIFACTS=True,
     )
 
     assert settings.OPENAI_API_KEY == "test-key"
+    assert settings.OPENAI_BASE_URL == "https://example.com/v1"
     assert settings.OPENAI_MODEL == "gpt-4.1-mini"
     assert settings.ARTIFACT_ROOT == artifact_root
     assert settings.ENABLE_DEV_ARTIFACTS is True
@@ -755,6 +757,7 @@ def test_settings_load_backend_env_file_from_project_root_layout(tmp_path: Path,
         "\n".join(
             [
                 "OPENAI_API_KEY=env-test-key",
+                "OPENAI_BASE_URL=https://example.com/v1",
                 "OPENAI_MODEL=gpt-4.1-mini",
                 f"ARTIFACT_ROOT={backend_dir / 'artifacts'}",
                 "ENABLE_DEV_ARTIFACTS=true",
@@ -780,6 +783,7 @@ def test_settings_load_backend_env_file_from_project_root_layout(tmp_path: Path,
     settings = TempSettings()
 
     assert settings.OPENAI_API_KEY == "env-test-key"
+    assert settings.OPENAI_BASE_URL == "https://example.com/v1"
     assert settings.OPENAI_MODEL == "gpt-4.1-mini"
     assert settings.ARTIFACT_ROOT == backend_dir / "artifacts"
     assert settings.ENABLE_DEV_ARTIFACTS is True

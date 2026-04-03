@@ -44,7 +44,24 @@ class FormilySchemaNode(ContractModel):
                 return False
             for key, item in value.items():
                 child = node.properties.get(key)
-                if child is None or not cls._default_matches_node(child, item):
+                if child is not None:
+                    if not cls._default_matches_node(child, item):
+                        return False
+                    continue
+
+                matched_nested_child = False
+                for nested in node.properties.values():
+                    if nested.type != "void" or nested.properties is None:
+                        continue
+                    nested_child = nested.properties.get(key)
+                    if nested_child is None:
+                        continue
+                    if not cls._default_matches_node(nested_child, item):
+                        return False
+                    matched_nested_child = True
+                    break
+
+                if not matched_nested_child:
                     return False
             return True
         return False
