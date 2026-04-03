@@ -71,6 +71,10 @@ class ArtifactStore:
             raise ValueError("run_dir symlink is not allowed")
         if not self._is_valid_run_dir(run_dir):
             raise ValueError("run_dir must be a direct run directory inside run_root")
+        try:
+            run_dir.resolve().relative_to(self.run_root.resolve())
+        except ValueError as exc:
+            raise ValueError("run_dir must be inside run_root") from exc
 
     def _run_dir_sort_key(self, path: Path) -> tuple[str, int]:
         match = RUN_DIR_PATTERN.match(path.name)

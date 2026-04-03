@@ -129,3 +129,18 @@ def test_write_operations_reject_symlink_run_dir(tmp_path: Path) -> None:
 
     assert not (external_run / "artifact.txt").exists()
     assert not (external_run / "artifact.bin").exists()
+
+
+def test_write_operations_reject_run_dir_outside_run_root(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "runs")
+    outside_run = tmp_path / "elsewhere" / "20260403-000001-000001"
+    outside_run.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="run_root"):
+        store.write_text(outside_run, "artifact.txt", "bad")
+
+    with pytest.raises(ValueError, match="run_root"):
+        store.write_bytes(outside_run, "artifact.bin", b"bad")
+
+    assert not (outside_run / "artifact.txt").exists()
+    assert not (outside_run / "artifact.bin").exists()
