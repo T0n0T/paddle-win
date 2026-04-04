@@ -91,12 +91,19 @@
 
 职责：
 
+- 作为会话创建的唯一应用层入口
 - `create_session` 时调用 bootstrap 服务
 - 将 bootstrap 返回的初始状态写入会话存储
 - `send_message` 时组织多轮编辑 prompt
 - `rollback` 时恢复到上一轮状态
 
-它不再直接关心 OCR 细节，只关心会话生命周期。
+约束：
+
+- router 不直接调用 `WorkbenchBootstrapService`
+- router 只调用 `WorkbenchService.create_session`
+- `WorkbenchBootstrapService` 只作为 `WorkbenchService` 的内部依赖
+
+这样可以确保创建入口唯一，避免 API 层、bootstrap 层和 store 层各自重复处理错误与状态写入。
 
 ### 5.3 前端工作台
 
@@ -183,10 +190,11 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 处理流程：
 
 1. 校验上传文件
-2. 调用 `WorkbenchBootstrapService`
-3. 生成首轮会话状态
-4. 写入会话存储
-5. 返回 `SessionSnapshot`
+2. router 调用 `WorkbenchService.create_session`
+3. `WorkbenchService.create_session` 调用 `WorkbenchBootstrapService`
+4. bootstrap 生成首轮会话状态
+5. `WorkbenchService` 将初始状态写入会话存储
+6. 返回 `SessionSnapshot`
 
 ### 7.2 `GET /api/sessions/{session_id}`
 
@@ -226,6 +234,13 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 - 前端不应依赖服务端文件系统路径
 - `run_id` 已足够关联后端调试产物
 - 后续若存储位置变化，前端模型无需调整
+
+该约束必须同时适用于四个返回 `SessionSnapshot` 的接口：
+
+- `POST /api/sessions`
+- `GET /api/sessions/{session_id}`
+- `POST /api/sessions/{session_id}/messages`
+- `POST /api/sessions/{session_id}/rollback`
 
 ## 9. 前端交互设计
 
@@ -274,6 +289,14 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 - `result.html`
 - `metadata.json`
 
+其中 `metadata.json` 必须能够对齐“首轮会话真相”，至少包含：
+
+- `run_id`
+- `source_image_name`
+- `form_json`
+- `change_summary`
+- 关键运行元信息
+
 这样既满足产品端“只传图片”的简洁体验，又不牺牲后端排障能力。
 
 ## 11. 错误处理
@@ -315,9 +338,15 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 
 处理：
 
-- 返回 `500` 或 `422`
+- 返回 `500`
 - 文案为“初始化失败：首轮表单重建未完成”
 - 尽量保留 OCR 与 prompt 调试产物
+
+约定：
+
+- `422` 只用于上传输入错误
+- OCR、模型请求失败、模型输出结构非法、产物写入失败都视为服务端初始化失败，统一返回 `500`
+- 响应体应返回稳定、可展示的 `detail`
 
 ### 11.4 编辑阶段失败
 
@@ -349,31 +378,37 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 
 ## 13. 实施顺序
 
-### 13.1 第一步：更新会话创建接口
-
-- `POST /api/sessions` 改为接收上传文件
-- 更新请求模型
-- 更新前端 API 调用方式
-
-### 13.2 第二步：引入 bootstrap 服务
+### 13.1 第一步：引入 bootstrap 服务
 
 - 抽出共享的初始化链路
 - 复用现有 OCR 与重建能力
 - 写入 `backend/runs/<run-id>/`
 
-### 13.3 第三步：调整会话模型
+### 13.2 第二步：让 `WorkbenchService.create_session` 接入 bootstrap
+
+- 保持 router 入口不变
+- 先在应用层打通“同步初始化 -> 写入会话”
+- 确认创建入口唯一
+
+### 13.3 第三步：更新会话创建接口与前端 API
+
+- `POST /api/sessions` 改为接收上传文件
+- 更新请求模型
+- 前端改为 `FormData`
+
+### 13.4 第四步：调整会话模型
 
 - 对前端移除路径字段
 - 增加 `source_image_name` 与 `run_id`
 - 后端内部保留调试路径
 
-### 13.4 第四步：更新前端创建区
+### 13.5 第五步：更新前端创建区
 
 - 文本路径输入改成文件选择器
 - 使用 `FormData` 创建会话
 - 增加创建中的状态提示与错误提示
 
-### 13.5 第五步：保留最小 CLI
+### 13.6 第六步：保留最小 CLI
 
 - 保证 `ocr`、`reconstruct` 仍可用于后端调试
 - 将 README 主流程改成“上传图片创建会话”
@@ -393,6 +428,7 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 - 缺失文件返回 `422`
 - 非法文件返回预期错误
 - 创建失败时返回明确错误消息
+- 四个 `SessionSnapshot` 接口都不再暴露 `source_image_path` 与 `ocr_json_path`
 
 ### 14.3 前端组件测试
 
@@ -407,6 +443,7 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 - 回退仍可用
 - 预览仍可刷新
 - 本地双栏工作台布局不退化
+- 旧路径字段在前端类型、API 解析和测试中彻底下线
 
 ## 15. 决策结论
 
