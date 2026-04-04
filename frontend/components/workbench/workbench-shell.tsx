@@ -13,8 +13,7 @@ import {
 import type { SessionSnapshot } from "@/lib/workbench-types";
 
 export function WorkbenchShell() {
-  const [imagePath, setImagePath] = useState("");
-  const [ocrJsonPath, setOcrJsonPath] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [session, setSession] = useState<SessionSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +22,11 @@ export function WorkbenchShell() {
   const [isRollingBack, setIsRollingBack] = useState(false);
 
   async function handleCreateSession() {
-    if (!imagePath.trim() || !ocrJsonPath.trim()) {
+    if (!imageFile) {
+      return;
+    }
+    if (!isAcceptedImageFile(imageFile)) {
+      setError("请选择图片文件");
       return;
     }
 
@@ -31,8 +34,7 @@ export function WorkbenchShell() {
       setIsCreating(true);
       setError(null);
       const snapshot = await createSession({
-        imagePath,
-        ocrJsonPath,
+        image: imageFile,
       });
       setSession(snapshot);
       setMessage("");
@@ -113,6 +115,11 @@ export function WorkbenchShell() {
             <span className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm">
               {session ? `版本 ${session.version}` : "等待输入源文件"}
             </span>
+            <span className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm">
+              {session
+                ? `Run ${session.run_id} · ${session.source_image_name}`
+                : "尚未生成运行标识"}
+            </span>
           </div>
         </header>
 
@@ -129,11 +136,9 @@ export function WorkbenchShell() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.94fr)_minmax(420px,0.86fr)]">
           <div className="space-y-6">
             <SessionLauncher
-              imagePath={imagePath}
-              ocrJsonPath={ocrJsonPath}
+              selectedFileName={imageFile?.name ?? null}
               isSubmitting={isCreating}
-              onImagePathChange={setImagePath}
-              onOcrJsonPathChange={setOcrJsonPath}
+              onFileChange={setImageFile}
               onSubmit={handleCreateSession}
             />
 
@@ -159,5 +164,15 @@ export function WorkbenchShell() {
         </div>
       </div>
     </main>
+  );
+}
+
+function isAcceptedImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) {
+    return true;
+  }
+  const lowerName = file.name.toLowerCase();
+  return [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"].some((suffix) =>
+    lowerName.endsWith(suffix),
   );
 }

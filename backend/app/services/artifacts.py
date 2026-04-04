@@ -16,12 +16,7 @@ class ArtifactStore:
         self.run_root.mkdir(parents=True, exist_ok=True)
 
     def create_run(self, image_path: Path) -> tuple[Path, Path]:
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        next_sequence = self._next_sequence_for_timestamp(timestamp)
-        run_id = f"{timestamp}-{next_sequence:06d}"
-        run_dir = self.run_root / run_id
-        run_dir.mkdir(parents=True, exist_ok=False)
-
+        run_dir = self._create_run_dir()
         try:
             copied_image = run_dir / f"source{image_path.suffix.lower()}"
             copy2(image_path, copied_image)
@@ -29,6 +24,25 @@ class ArtifactStore:
         except Exception:
             rmtree(run_dir, ignore_errors=True)
             raise
+
+    def create_run_from_upload(self, filename: str, content: bytes) -> tuple[Path, Path]:
+        suffix = Path(filename).suffix.lower() or ".bin"
+        run_dir = self._create_run_dir()
+        try:
+            copied_image = run_dir / f"source{suffix}"
+            copied_image.write_bytes(content)
+            return run_dir, copied_image
+        except Exception:
+            rmtree(run_dir, ignore_errors=True)
+            raise
+
+    def _create_run_dir(self) -> Path:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        next_sequence = self._next_sequence_for_timestamp(timestamp)
+        run_id = f"{timestamp}-{next_sequence:06d}"
+        run_dir = self.run_root / run_id
+        run_dir.mkdir(parents=True, exist_ok=False)
+        return run_dir
 
     def write_text(self, run_dir: Path, filename: str, content: str) -> Path:
         path = self._resolve_run_path(run_dir, filename)

@@ -7,8 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import create_sessions_router
 from app.config import BACKEND_ROOT, Settings
+from app.services.artifacts import ArtifactStore
 from app.services.multimodal_llm import MultimodalLLMService
-from app.workbench import InMemorySessionStore, WorkbenchService
+from app.services.paddle_structure import PaddleStructureService
+from app.workbench import FileSessionStore, InMemorySessionStore, WorkbenchService
 
 
 class FakeWorkbenchLLMService:
@@ -32,13 +34,26 @@ class FakeWorkbenchLLMService:
         )
 
 
+class FakeOCRService:
+    def run(self, image_path: Path) -> tuple[dict, list[dict]]:
+        return (
+            {"engine": "fake-ocr", "pages": 1, "image_name": image_path.name},
+            [{"text": image_path.stem, "bbox": [], "block_type": "image"}],
+        )
+
+
 LOCAL_DEV_CORS_ORIGINS = (
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 )
 
 
-def create_app(*, fake_mode: bool = False, settings: Settings | None = None) -> FastAPI:
+def create_app(
+    *,
+    fake_mode: bool = False,
+    settings: Settings | None = None,
+    session_root: Path | None = None,
+) -> FastAPI:
     app_settings = settings or Settings()
     init_prompt_path = _resolve_backend_path(app_settings.workbench_init_prompt_path)
     edit_prompt_path = _resolve_backend_path(app_settings.workbench_edit_prompt_path)
@@ -51,11 +66,15 @@ def create_app(*, fake_mode: bool = False, settings: Settings | None = None) -> 
             base_url=app_settings.openai_base_url,
         )
     )
+    ocr_service = FakeOCRService() if fake_mode else PaddleStructureService()
+    resolved_session_root = session_root or app_settings.workbench_session_root
     service = WorkbenchService(
-        store=InMemorySessionStore(),
+        store=FileSessionStore(resolved_session_root),
         llm_service=llm_service,
         init_prompt_path=init_prompt_path,
         edit_prompt_path=edit_prompt_path,
+        artifact_store=ArtifactStore(app_settings.run_root),
+        ocr_service=ocr_service,
         max_validation_retries=app_settings.workbench_max_validation_retries,
     )
 

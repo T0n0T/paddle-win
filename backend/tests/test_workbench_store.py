@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.workbench.models import ChangeSummary, FormDocument
-from app.workbench.store import InMemorySessionStore
+from app.workbench.store import FileSessionStore, InMemorySessionStore
 
 
 def make_form_document(title: str = "客户登记表") -> FormDocument:
@@ -113,3 +113,77 @@ def test_store_can_rollback_to_previous_version() -> None:
     assert rolled_back.version == 1
     assert rolled_back.current_html == "<form>v1</form>"
     assert len(rolled_back.turns) == 1
+
+
+def test_file_store_persists_history_across_instances(tmp_path: Path) -> None:
+    sessions_root = tmp_path / "sessions"
+    first_store = FileSessionStore(sessions_root)
+    session = first_store.create(
+        image_path=Path("/tmp/form.png"),
+        ocr_json_path=Path("/tmp/ocr.json"),
+        form_document=make_form_document(),
+        html="<form>v1</form>",
+        summary=make_summary("初始化"),
+    )
+    first_store.append_turn(
+        session_id=session.session_id,
+        user_message="请新增备注字段",
+        assistant_message="已新增备注",
+        form_document=make_form_document("客户登记表 v2"),
+        html="<form>v2</form>",
+        summary=make_summary("新增备注", ["remark"]),
+    )
+
+    second_store = FileSessionStore(sessions_root)
+    restored = second_store.get(session.session_id)
+
+    assert restored.version == 2
+    assert restored.run_id == session.run_id
+    assert restored.source_image_name == "form.png"
+    assert restored.current_form_json.title == "客户登记表 v2"
+    assert restored.turns[-1].assistant_message == "已新增备注"
+
+
+def test_file_store_rollback_persists_after_reopen(tmp_path: Path) -> None:
+    sessions_root = tmp_path / "sessions"
+    first_store = FileSessionStore(sessions_root)
+    session = first_store.create(
+        image_path=Path("/tmp/form.png"),
+        ocr_json_path=Path("/tmp/ocr.json"),
+        form_document=make_form_document(),
+        html="<form>v1</form>",
+        summary=make_summary("初始化"),
+    )
+    first_store.append_turn(
+        session_id=session.session_id,
+        user_message="请新增备注字段",
+        assistant_message="已新增备注",
+        form_document=make_form_document("客户登记表 v2"),
+        html="<form>v2</form>",
+        summary=make_summary("新增备注", ["remark"]),
+    )
+
+    reopened_store = FileSessionStore(sessions_root)
+    rolled_back = reopened_store.rollback(session.session_id)
+
+    assert rolled_back.version == 1
+    assert rolled_back.run_id == session.run_id
+    assert rolled_back.source_image_name == "form.png"
+    assert rolled_back.current_html == "<form>v1</form>"
+
+    restored_again = FileSessionStore(sessions_root).get(session.session_id)
+    assert restored_again.version == 1
+
+
+def test_in_memory_store_assigns_run_identity_on_create() -> None:
+    store = InMemorySessionStore()
+    session = store.create(
+        image_path=Path("/tmp/form.png"),
+        ocr_json_path=Path("/tmp/ocr.json"),
+        form_document=make_form_document(),
+        html="<form>v1</form>",
+        summary=make_summary("初始化"),
+    )
+
+    assert session.run_id
+    assert session.source_image_name == "form.png"

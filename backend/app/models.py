@@ -13,6 +13,7 @@ class PipelineRunMetadata(BaseModel):
     run_id: str | None = None
     source_kind: str = "external"
     notes: list[str] = Field(default_factory=list)
+    source_image_name: str | None = None
 
 
 class PipelineState(BaseModel):

@@ -1,7 +1,9 @@
 from pathlib import Path
+import json
 
 import pytest
 
+from app.services.artifacts import ArtifactStore
 from app.workbench.models import CreateSessionRequest, EditMessageRequest
 from app.workbench.service import WorkbenchService
 from app.workbench.store import InMemorySessionStore
@@ -15,6 +17,12 @@ class FakeLLMService:
     def generate_text(self, image_path: Path, prompt: str) -> str:
         self.calls.append((image_path, prompt))
         return self.responses.pop(0)
+
+
+class FailingLLMService:
+    def generate_text(self, image_path: Path, prompt: str) -> str:
+        del image_path, prompt
+        raise ValueError("upstream llm request failed")
 
 
 def write_prompt_files(tmp_path: Path) -> tuple[Path, Path]:
@@ -75,7 +83,12 @@ def test_create_session_builds_first_version(tmp_path: Path) -> None:
     )
 
     session = service.create_session(
-        CreateSessionRequest(image_path=image_path, ocr_json_path=ocr_json_path)
+        CreateSessionRequest(
+            image_path=image_path,
+            ocr_json_path=ocr_json_path,
+            run_id="20260404-120001-000001",
+            source_image_name="form.png",
+        )
     )
 
     assert session.version == 1
@@ -95,6 +108,115 @@ def test_create_session_builds_first_version(tmp_path: Path) -> None:
             ),
         )
     ]
+
+
+def test_create_session_writes_initial_result_and_metadata_artifacts(tmp_path: Path) -> None:
+    image_path, ocr_json_path = write_source_files(tmp_path)
+    init_prompt, edit_prompt = write_prompt_files(tmp_path)
+    artifact_store = ArtifactStore(tmp_path / "runs")
+    llm = FakeLLMService([make_init_payload()])
+    service = WorkbenchService(
+        store=InMemorySessionStore(),
+        llm_service=llm,
+        init_prompt_path=init_prompt,
+        edit_prompt_path=edit_prompt,
+        artifact_store=artifact_store,
+    )
+
+    session = service.create_session(
+        CreateSessionRequest(
+            image_path=image_path,
+            ocr_json_path=ocr_json_path,
+            run_id="20260404-120001-000001",
+            source_image_name="form.png",
+        )
+    )
+
+    run_dir = artifact_store.run_root / session.run_id
+    ocr_raw_path = run_dir / "ocr_raw.json"
+    ocr_compact_path = run_dir / "ocr_compact.json"
+    prompt_path = run_dir / "prompt.txt"
+    model_raw_path = run_dir / "model_raw.txt"
+    result_path = run_dir / "result.html"
+    metadata_path = run_dir / "metadata.json"
+
+    assert ocr_raw_path.exists()
+    assert ocr_compact_path.exists()
+    assert prompt_path.exists()
+    assert model_raw_path.exists()
+    assert result_path.exists()
+    assert "OCR:" in prompt_path.read_text(encoding="utf-8")
+    assert "form_json" in model_raw_path.read_text(encoding="utf-8")
+    assert result_path.read_text(encoding="utf-8") == session.current_html
+    assert metadata_path.exists()
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["run_id"] == session.run_id
+    assert metadata["source_image_name"] == session.source_image_name
+    assert metadata["initial_version"] == session.version
+    assert metadata["form_json"] == session.current_form_json.model_dump(mode="json")
+    assert metadata["change_summary"] == session.summary.model_dump(mode="json")
+
+
+def test_create_session_persists_prompt_and_failure_details_when_llm_fails(tmp_path: Path) -> None:
+    image_path, ocr_json_path = write_source_files(tmp_path)
+    init_prompt, edit_prompt = write_prompt_files(tmp_path)
+    artifact_store = ArtifactStore(tmp_path / "runs")
+    service = WorkbenchService(
+        store=InMemorySessionStore(),
+        llm_service=FailingLLMService(),
+        init_prompt_path=init_prompt,
+        edit_prompt_path=edit_prompt,
+        artifact_store=artifact_store,
+    )
+
+    with pytest.raises(ValueError, match="upstream llm request failed"):
+        service.create_session(
+            CreateSessionRequest(
+                image_path=image_path,
+                ocr_json_path=ocr_json_path,
+                run_id="20260404-120001-000002",
+                source_image_name="form.png",
+            )
+        )
+
+    run_dir = artifact_store.run_root / "20260404-120001-000002"
+    assert (run_dir / "prompt.txt").exists()
+    assert "upstream llm request failed" in (run_dir / "model_raw.txt").read_text(encoding="utf-8")
+
+
+def test_create_session_preserves_raw_model_output_when_validation_fails(tmp_path: Path) -> None:
+    image_path, ocr_json_path = write_source_files(tmp_path)
+    init_prompt, edit_prompt = write_prompt_files(tmp_path)
+    artifact_store = ArtifactStore(tmp_path / "runs")
+    llm = FakeLLMService(
+        [
+            '{"form_json":{"title":"客户登记表","sections":[],"fields":[]},'
+            '"html":"<form>ok</form>",'
+            '"change_summary":"这是字符串，不是对象"}'
+        ]
+    )
+    service = WorkbenchService(
+        store=InMemorySessionStore(),
+        llm_service=llm,
+        init_prompt_path=init_prompt,
+        edit_prompt_path=edit_prompt,
+        artifact_store=artifact_store,
+    )
+
+    with pytest.raises(ValueError, match="ChangeSummary"):
+        service.create_session(
+            CreateSessionRequest(
+                image_path=image_path,
+                ocr_json_path=ocr_json_path,
+                run_id="20260404-120001-000003",
+                source_image_name="form.png",
+            )
+        )
+
+    run_dir = artifact_store.run_root / "20260404-120001-000003"
+    assert "这是字符串，不是对象" in (run_dir / "model_raw.txt").read_text(encoding="utf-8")
+    assert "ChangeSummary" in (run_dir / "model_error.txt").read_text(encoding="utf-8")
 
 
 def test_send_message_uses_current_session_state_and_updates_snapshot(tmp_path: Path) -> None:

@@ -46,8 +46,8 @@ export type SessionTurn = {
 export type SessionSnapshot = {
   session_id: string;
   version: number;
-  image_path: string;
-  ocr_json_path: string;
+  run_id: string;
+  source_image_name: string;
   current_form_json: FormDocument;
   current_html: string;
   summary: ChangeSummary;
@@ -55,8 +55,7 @@ export type SessionSnapshot = {
 };
 
 export type CreateSessionInput = {
-  imagePath: string;
-  ocrJsonPath: string;
+  image: File;
 };
 
 export type SendMessageInput = {

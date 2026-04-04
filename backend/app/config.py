@@ -17,12 +17,13 @@ class Settings(BaseSettings):
     prompt_template_path: Path = Path("app/prompts/reconstruct_html.md")
     workbench_init_prompt_path: Path = Path("app/prompts/workbench_init.md")
     workbench_edit_prompt_path: Path = Path("app/prompts/workbench_edit.md")
+    workbench_session_root: Path = Path("data/sessions")
     workbench_max_validation_retries: int = 1
     enable_dev_artifacts: bool = True
 
-    @field_validator("run_root", mode="after")
+    @field_validator("run_root", "workbench_session_root", mode="after")
     @classmethod
-    def resolve_run_root(cls, value: Path) -> Path:
+    def resolve_backend_relative_path(cls, value: Path) -> Path:
         if value.is_absolute():
             return value
         return BACKEND_ROOT / value

@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.services.artifacts import ArtifactStore
+from app.services.paddle_structure import PaddleStructureService
 from app.workbench.models import (
     ChangeSummary,
     CreateSessionRequest,
@@ -14,7 +16,8 @@ from app.workbench.models import (
     FormDocument,
     SessionSnapshot,
 )
-from app.workbench.store import InMemorySessionStore
+from app.workbench.bootstrap import WorkbenchBootstrapService
+from app.workbench.store import SessionStore
 
 
 class InvalidPayloadError(ValueError):
@@ -28,39 +31,66 @@ class SessionNotFoundError(LookupError):
 class WorkbenchService:
     def __init__(
         self,
-        store: InMemorySessionStore,
+        store: SessionStore,
         llm_service: Any,
         init_prompt_path: Path,
         edit_prompt_path: Path,
+        artifact_store: ArtifactStore | None = None,
+        ocr_service: Any | None = None,
         max_validation_retries: int = 0,
     ) -> None:
         self.store = store
         self.llm_service = llm_service
         self.init_prompt_path = init_prompt_path
         self.edit_prompt_path = edit_prompt_path
+        self.artifact_store = artifact_store
+        self.bootstrap_service = (
+            WorkbenchBootstrapService(
+                artifact_store,
+                ocr_service or PaddleStructureService(),
+            )
+            if artifact_store is not None
+            else None
+        )
         self.max_validation_retries = max_validation_retries
 
+    def create_session_from_upload(self, filename: str, content: bytes) -> SessionSnapshot:
+        if self.bootstrap_service is None:
+            raise RuntimeError("upload bootstrap is not configured")
+        request = self.bootstrap_service.create_request_from_upload(filename, content)
+        return self.create_session(request)
+
     def create_session(self, request: CreateSessionRequest) -> SessionSnapshot:
+        self._ensure_initial_ocr_artifacts(request)
         prompt = self._render_init_prompt(
             image_path=request.image_path,
             ocr_json_path=request.ocr_json_path,
         )
-        form_document, html, summary = self._generate_validated_response(
-            image_path=request.image_path,
-            prompt=prompt,
-        )
-        return self.store.create(
+        self._write_prompt_artifact(request, prompt)
+        try:
+            form_document, html, summary, response_text = self._generate_validated_response(
+                image_path=request.image_path,
+                prompt=prompt,
+            )
+        except Exception as exc:
+            self._write_failed_model_artifact(request, str(exc))
+            raise
+        snapshot = self.store.create(
             image_path=request.image_path,
             ocr_json_path=request.ocr_json_path,
             form_document=form_document,
             html=html,
             summary=summary,
+            run_id=request.run_id,
+            source_image_name=request.source_image_name,
         )
+        self._write_initial_artifacts(snapshot, prompt=prompt, response_text=response_text)
+        return snapshot
 
     def send_message(self, session_id: str, request: EditMessageRequest) -> SessionSnapshot:
         session = self.get_session(session_id)
         prompt = self._render_edit_prompt(session=session, user_message=request.message)
-        form_document, html, summary = self._generate_validated_response(
+        form_document, html, summary, _response_text = self._generate_validated_response(
             image_path=session.image_path,
             prompt=prompt,
         )
@@ -92,7 +122,7 @@ class WorkbenchService:
         self,
         image_path: Path,
         prompt: str,
-    ) -> tuple[FormDocument, str, ChangeSummary]:
+    ) -> tuple[FormDocument, str, ChangeSummary, str]:
         attempts = self.max_validation_retries + 1
         last_error: InvalidPayloadError | None = None
         for _ in range(attempts):
@@ -104,7 +134,7 @@ class WorkbenchService:
                 html = payload["html"]
                 if not isinstance(html, str) or not html.strip():
                     raise InvalidPayloadError("html must be a non-empty string")
-                return form_document, html, summary
+                return form_document, html, summary, response_text
             except (ValidationError, InvalidPayloadError) as exc:
                 last_error = InvalidPayloadError(str(exc))
 
@@ -165,3 +195,74 @@ class WorkbenchService:
         if summary.warnings:
             return "；".join(summary.warnings)
         return summary.user_intent
+
+    def _write_initial_artifacts(
+        self,
+        snapshot: SessionSnapshot,
+        *,
+        prompt: str,
+        response_text: str,
+    ) -> None:
+        if self.artifact_store is None:
+            return
+
+        run_dir = self.artifact_store.run_root / snapshot.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self.artifact_store.write_text(run_dir, "prompt.txt", prompt)
+        self.artifact_store.write_text(run_dir, "model_raw.txt", response_text)
+        self.artifact_store.write_text(run_dir, "result.html", snapshot.current_html)
+        metadata = {
+            "run_id": snapshot.run_id,
+            "source_image_name": snapshot.source_image_name,
+            "initial_version": snapshot.version,
+            "form_json": snapshot.current_form_json.model_dump(mode="json"),
+            "current_html": snapshot.current_html,
+            "change_summary": snapshot.summary.model_dump(mode="json"),
+        }
+        self.artifact_store.write_text(
+            run_dir,
+            "metadata.json",
+            json.dumps(metadata, ensure_ascii=False, indent=2),
+        )
+
+    def _ensure_initial_ocr_artifacts(self, request: CreateSessionRequest) -> None:
+        if self.artifact_store is None or request.run_id is None:
+            return
+
+        run_dir = self.artifact_store.run_root / request.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        compact_text = request.ocr_json_path.read_text(encoding="utf-8")
+        ocr_compact_path = run_dir / "ocr_compact.json"
+        if not ocr_compact_path.exists():
+            self.artifact_store.write_text(run_dir, "ocr_compact.json", compact_text)
+        ocr_raw_path = run_dir / "ocr_raw.json"
+        if not ocr_raw_path.exists():
+            self.artifact_store.write_text(
+                run_dir,
+                "ocr_raw.json",
+                json.dumps(
+                    {
+                        "engine": "existing-ocr-json",
+                        "compact_json_path": str(request.ocr_json_path),
+                        "blocks": json.loads(compact_text),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+            )
+
+    def _write_prompt_artifact(self, request: CreateSessionRequest, prompt: str) -> None:
+        if self.artifact_store is None or request.run_id is None:
+            return
+        run_dir = self.artifact_store.run_root / request.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self.artifact_store.write_text(run_dir, "prompt.txt", prompt)
+
+    def _write_failed_model_artifact(self, request: CreateSessionRequest, detail: str) -> None:
+        if self.artifact_store is None or request.run_id is None:
+            return
+        run_dir = self.artifact_store.run_root / request.run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        if not (run_dir / "model_raw.txt").exists():
+            self.artifact_store.write_text(run_dir, "model_raw.txt", detail)
+        self.artifact_store.write_text(run_dir, "model_error.txt", detail)

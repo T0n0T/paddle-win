@@ -4,9 +4,10 @@
 
 `frontend/` 是基于 Next.js App Router 的表单重建对话工作台，负责：
 
-- 让用户输入 `image_path` 和 `ocr_json_path` 创建会话
+- 让用户用图片路径和 OCR JSON 路径创建会话
 - 显示聊天历史、当前版本摘要和错误信息
 - 通过 iframe 预览后端返回的最新 HTML
+- 优先展示会话的 `run_id` 与 `source_image_name`，作为调试和联调的主识别信息
 - 支持发送修改消息和回退上一轮版本
 
 ## 环境准备
@@ -67,5 +68,12 @@ pnpm dev
 
 - `image_path`：原始图片绝对路径
 - `ocr_json_path`：OCR 生成的 `ocr_compact.json` 绝对路径
+
+会话创建成功后，前端应优先使用后端返回的以下字段识别当前工作对象：
+
+- `run_id`：对应 `backend/runs/<run-id>/` 调试产物目录
+- `source_image_name`：当前表单源图文件名
+
+也就是说，`image_path` 和 `ocr_json_path` 目前仍是过渡阶段的创建输入，但不再适合作为后续联调、截图和问题定位时的主契约。
 
 只有当 OCR 本身有误时，才建议回到后端重跑 `make ocr`；否则应保持同一份 OCR JSON，专注验证多轮编辑效果。

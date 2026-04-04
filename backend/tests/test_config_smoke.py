@@ -38,6 +38,20 @@ def test_settings_accepts_run_root_relative_to_backend(monkeypatch) -> None:
     assert settings.run_root == BACKEND_ROOT / "tmp/output"
 
 
+def test_settings_default_workbench_session_root_is_inside_backend(monkeypatch) -> None:
+    monkeypatch.delenv("WORKBENCH_SESSION_ROOT", raising=False)
+
+    settings = Settings(_env_file=None)
+    assert settings.workbench_session_root == BACKEND_ROOT / "data/sessions"
+
+
+def test_settings_accepts_workbench_session_root_relative_to_backend(monkeypatch) -> None:
+    monkeypatch.setenv("WORKBENCH_SESSION_ROOT", "tmp/sessions")
+
+    settings = Settings(_env_file=None)
+    assert settings.workbench_session_root == BACKEND_ROOT / "tmp/sessions"
+
+
 def test_main_shows_help_without_args() -> None:
     runner = CliRunner()
     result = runner.invoke(app, [])
@@ -56,5 +70,6 @@ def test_pipeline_state_uses_structured_metadata_model() -> None:
     assert state.metadata.model_dump() == {
         "run_id": None,
         "source_kind": "external",
+        "source_image_name": None,
         "notes": [],
     }

@@ -8,6 +8,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function makeImageFile(name = "form.png", type = "image/png"): File {
+  return new File(["fake-image"], name, { type });
+}
+
 test("creates a session and renders preview and change summary", async () => {
   const fetchMock = vi
     .fn()
@@ -16,8 +20,8 @@ test("creates a session and renders preview and change summary", async () => {
         JSON.stringify({
           session_id: "s1",
           version: 1,
-          image_path: "/tmp/form.png",
-          ocr_json_path: "/tmp/ocr.json",
+          run_id: "20260404-120001-000001",
+          source_image_name: "form.png",
           current_html: "<form><input aria-label='姓名' /></form>",
           current_form_json: {
             title: "客户登记表",
@@ -61,8 +65,8 @@ test("creates a session and renders preview and change summary", async () => {
         JSON.stringify({
           session_id: "s1",
           version: 2,
-          image_path: "/tmp/form.png",
-          ocr_json_path: "/tmp/ocr.json",
+          run_id: "20260404-120001-000001",
+          source_image_name: "form.png",
           current_html:
             "<form><input aria-label='姓名' /><textarea aria-label='备注'></textarea></form>",
           current_form_json: {
@@ -125,11 +129,8 @@ test("creates a session and renders preview and change summary", async () => {
 
   render(<WorkbenchShell />);
 
-  fireEvent.change(screen.getByLabelText("表单图片路径"), {
-    target: { value: "/tmp/form.png" },
-  });
-  fireEvent.change(screen.getByLabelText("OCR JSON 路径"), {
-    target: { value: "/tmp/ocr.json" },
+  fireEvent.change(screen.getByLabelText("选择表单图片"), {
+    target: { files: [makeImageFile()] },
   });
   fireEvent.click(screen.getByRole("button", { name: "创建会话" }));
 
@@ -143,6 +144,17 @@ test("creates a session and renders preview and change summary", async () => {
   await waitFor(() => {
     expect(screen.getByText("新增备注字段")).toBeInTheDocument();
   });
+  expect(
+    screen.getByText("Run 20260404-120001-000001 · form.png"),
+  ).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    "http://127.0.0.1:8000/api/sessions",
+    expect.objectContaining({
+      method: "POST",
+      body: expect.any(FormData),
+    }),
+  );
   expect(screen.getByTitle("表单预览")).toHaveAttribute(
     "srcdoc",
     expect.stringContaining("textarea"),
@@ -157,8 +169,8 @@ test("rolls back to the previous version and restores the preview", async () => 
         JSON.stringify({
           session_id: "s1",
           version: 1,
-          image_path: "/tmp/form.png",
-          ocr_json_path: "/tmp/ocr.json",
+          run_id: "20260404-120001-000001",
+          source_image_name: "form.png",
           current_html: "<form><input aria-label='姓名' /></form>",
           current_form_json: {
             title: "客户登记表",
@@ -202,8 +214,8 @@ test("rolls back to the previous version and restores the preview", async () => 
         JSON.stringify({
           session_id: "s1",
           version: 2,
-          image_path: "/tmp/form.png",
-          ocr_json_path: "/tmp/ocr.json",
+          run_id: "20260404-120001-000001",
+          source_image_name: "form.png",
           current_html:
             "<form><input aria-label='姓名' /><textarea aria-label='备注'></textarea></form>",
           current_form_json: {
@@ -266,8 +278,8 @@ test("rolls back to the previous version and restores the preview", async () => 
         JSON.stringify({
           session_id: "s1",
           version: 1,
-          image_path: "/tmp/form.png",
-          ocr_json_path: "/tmp/ocr.json",
+          run_id: "20260404-120001-000001",
+          source_image_name: "form.png",
           current_html: "<form><input aria-label='姓名' /></form>",
           current_form_json: {
             title: "客户登记表",
@@ -311,11 +323,8 @@ test("rolls back to the previous version and restores the preview", async () => 
 
   render(<WorkbenchShell />);
 
-  fireEvent.change(screen.getByLabelText("表单图片路径"), {
-    target: { value: "/tmp/form.png" },
-  });
-  fireEvent.change(screen.getByLabelText("OCR JSON 路径"), {
-    target: { value: "/tmp/ocr.json" },
+  fireEvent.change(screen.getByLabelText("选择表单图片"), {
+    target: { files: [makeImageFile()] },
   });
   fireEvent.click(screen.getByRole("button", { name: "创建会话" }));
 
@@ -360,8 +369,8 @@ test("shows an alert when sending a modification request fails", async () => {
         JSON.stringify({
           session_id: "s1",
           version: 1,
-          image_path: "/tmp/form.png",
-          ocr_json_path: "/tmp/ocr.json",
+          run_id: "20260404-120001-000001",
+          source_image_name: "form.png",
           current_html: "<form><input aria-label='姓名' /></form>",
           current_form_json: {
             title: "客户登记表",
@@ -418,11 +427,8 @@ test("shows an alert when sending a modification request fails", async () => {
 
   render(<WorkbenchShell />);
 
-  fireEvent.change(screen.getByLabelText("表单图片路径"), {
-    target: { value: "/tmp/form.png" },
-  });
-  fireEvent.change(screen.getByLabelText("OCR JSON 路径"), {
-    target: { value: "/tmp/ocr.json" },
+  fireEvent.change(screen.getByLabelText("选择表单图片"), {
+    target: { files: [makeImageFile()] },
   });
   fireEvent.click(screen.getByRole("button", { name: "创建会话" }));
 
@@ -441,4 +447,21 @@ test("shows an alert when sending a modification request fails", async () => {
     "srcdoc",
     "<form><input aria-label='姓名' /></form>",
   );
+});
+
+test("rejects non-image files before sending create request", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<WorkbenchShell />);
+
+  fireEvent.change(screen.getByLabelText("选择表单图片"), {
+    target: { files: [makeImageFile("notes.txt", "text/plain")] },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "创建会话" }));
+
+  await waitFor(() => {
+    expect(screen.getByRole("alert")).toHaveTextContent("请选择图片文件");
+  });
+  expect(fetchMock).not.toHaveBeenCalled();
 });

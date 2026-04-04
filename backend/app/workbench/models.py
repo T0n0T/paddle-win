@@ -52,6 +52,8 @@ class ChangeSummary(BaseModel):
 class CreateSessionRequest(BaseModel):
     image_path: Path
     ocr_json_path: Path
+    run_id: str | None = None
+    source_image_name: str | None = None
 
 
 class EditMessageRequest(BaseModel):
@@ -69,6 +71,8 @@ class SessionTurn(BaseModel):
 class SessionSnapshot(BaseModel):
     session_id: str
     version: int
+    run_id: str
+    source_image_name: str
     image_path: Path
     ocr_json_path: Path
     current_form_json: FormDocument
@@ -88,3 +92,27 @@ class SessionSnapshot(BaseModel):
         ):
             raise ValueError("current state must match latest turn")
         return self
+
+
+class SessionSnapshotResponse(BaseModel):
+    session_id: str
+    version: int
+    run_id: str
+    source_image_name: str
+    current_form_json: FormDocument
+    current_html: str
+    summary: ChangeSummary
+    turns: list[SessionTurn]
+
+    @classmethod
+    def from_snapshot(cls, snapshot: SessionSnapshot) -> "SessionSnapshotResponse":
+        return cls(
+            session_id=snapshot.session_id,
+            version=snapshot.version,
+            run_id=snapshot.run_id,
+            source_image_name=snapshot.source_image_name,
+            current_form_json=snapshot.current_form_json,
+            current_html=snapshot.current_html,
+            summary=snapshot.summary,
+            turns=snapshot.turns,
+        )

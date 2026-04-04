@@ -1,23 +1,19 @@
 "use client";
 
 type SessionLauncherProps = {
-  imagePath: string;
-  ocrJsonPath: string;
+  selectedFileName: string | null;
   isSubmitting: boolean;
-  onImagePathChange: (value: string) => void;
-  onOcrJsonPathChange: (value: string) => void;
+  onFileChange: (file: File | null) => void;
   onSubmit: () => void;
 };
 
 export function SessionLauncher({
-  imagePath,
-  ocrJsonPath,
+  selectedFileName,
   isSubmitting,
-  onImagePathChange,
-  onOcrJsonPathChange,
+  onFileChange,
   onSubmit,
 }: SessionLauncherProps) {
-  const isDisabled = isSubmitting || !imagePath.trim() || !ocrJsonPath.trim();
+  const isDisabled = isSubmitting || !selectedFileName;
 
   return (
     <section className="rounded-[28px] border border-white/70 bg-white/75 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
@@ -29,9 +25,12 @@ export function SessionLauncher({
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">
             创建编辑会话
           </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            当前阶段通过上传图片创建会话；创建成功后，请优先使用 run id 和源图文件名识别当前工作对象。
+          </p>
         </div>
         <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900">
-          OCR 输入
+          图片上传
         </span>
       </div>
 
@@ -44,36 +43,27 @@ export function SessionLauncher({
       >
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-slate-700">
-            表单图片路径
+            选择表单图片
           </span>
           <input
-            aria-label="表单图片路径"
+            aria-label="选择表单图片"
+            type="file"
+            accept="image/*"
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
-            placeholder="/data/forms/customer.png"
-            value={imagePath}
-            onChange={(event) => onImagePathChange(event.target.value)}
+            onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
           />
         </label>
 
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-slate-700">
-            OCR JSON 路径
-          </span>
-          <input
-            aria-label="OCR JSON 路径"
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
-            placeholder="/data/forms/customer.ocr.json"
-            value={ocrJsonPath}
-            onChange={(event) => onOcrJsonPathChange(event.target.value)}
-          />
-        </label>
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          {selectedFileName ?? "尚未选择图片文件"}
+        </div>
 
         <button
           type="submit"
           className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
           disabled={isDisabled}
         >
-          {isSubmitting ? "创建中..." : "创建会话"}
+          {isSubmitting ? "正在分析图片并重建表单..." : "创建会话"}
         </button>
       </form>
     </section>

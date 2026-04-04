@@ -1,3 +1,4 @@
+from .bootstrap import WorkbenchBootstrapService
 from .models import (
     ChangeSummary,
     CreateSessionRequest,
@@ -7,10 +8,11 @@ from .models import (
     FormSection,
     LayoutHint,
     SessionSnapshot,
+    SessionSnapshotResponse,
     SessionTurn,
 )
 from .service import InvalidPayloadError, SessionNotFoundError, WorkbenchService
-from .store import InMemorySessionStore
+from .store import FileSessionStore, InMemorySessionStore, SessionStore
 
 __all__ = [
     "ChangeSummary",
@@ -19,11 +21,15 @@ __all__ = [
     "FormDocument",
     "FormField",
     "FormSection",
+    "FileSessionStore",
     "InvalidPayloadError",
     "LayoutHint",
+    "SessionSnapshotResponse",
     "SessionNotFoundError",
+    "SessionStore",
     "SessionSnapshot",
     "SessionTurn",
     "InMemorySessionStore",
+    "WorkbenchBootstrapService",
     "WorkbenchService",
 ]
