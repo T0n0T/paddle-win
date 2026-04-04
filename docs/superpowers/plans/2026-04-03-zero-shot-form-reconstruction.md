@@ -1,5 +1,9 @@
 # 零样本表单重建 Implementation Plan
 
+> 状态：已暂停，不再作为当前主线实施计划。
+> 当前受支持主线为“外部 OCR JSON + workbench 会话编辑”。
+> 说明：Task 1 与 Task 2 的部分基础设施已被后续实现吸收，但 Task 3 及之后围绕 `make ocr` / `make reconstruct` 的主链没有继续落地。继续开发时，请以 workbench 相关设计与实现为准，不再按本文档推进零样本重建 CLI。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 构建一条“单张表单图片 -> PaddleOCR Structure -> 多模态大模型 -> 单文件 HTML”的可运行链路，并通过 `Makefile` 暴露 OCR 与重建命令，让用户可以在代码外通过修改 prompt 持续调优效果。
@@ -783,4 +787,3 @@ git commit -m "feat: add make targets for prompt-driven reconstruction workflow"
 - `PipelineState` 在各任务中保持同一命名
 - 产物命名统一为 `ocr_raw.json`、`ocr_compact.json`、`prompt.txt`、`model_raw.txt`、`result.html`
 - CLI 命令统一为 `ocr`、`reconstruct`、`latest`、`prompt-show`
-

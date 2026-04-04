@@ -3,6 +3,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from app.config import Settings
+from app.models import PipelineState
 from main import app
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -44,3 +45,16 @@ def test_main_shows_help_without_args() -> None:
     assert "Usage:" in result.stdout
     assert "reconstruct" in result.stdout
     assert "ocr" in result.stdout
+
+
+def test_pipeline_state_uses_structured_metadata_model() -> None:
+    state = PipelineState(image_path=Path("/tmp/form.png"))
+
+    assert hasattr(state.metadata, "run_id")
+    assert state.metadata.run_id is None
+    assert state.metadata.source_kind == "external"
+    assert state.metadata.model_dump() == {
+        "run_id": None,
+        "source_kind": "external",
+        "notes": [],
+    }

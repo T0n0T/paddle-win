@@ -7,7 +7,7 @@
 1. 后端 workbench 会话接口：接收已有的表单图片路径与 OCR JSON 路径，初始化编辑会话，维护 `form_json`、HTML 预览和变更摘要。
 2. 前端对话工作台：基于后端会话 API 创建编辑会话，支持多轮自然语言修改、预览当前 HTML、回退上一轮版本。
 
-当前推荐的使用方式是先准备稳定的 OCR JSON，再进入 workbench 做会话化联调。仓库里仍保留 `make ocr` / `make reconstruct` 入口，但这两条 CLI 在当前提交中还不是完整实现。
+当前推荐的使用方式是先准备稳定的 OCR JSON，再进入 workbench 做会话化联调。ocr_compact.json 需要由仓库外部链路预先生成；仓库里仍保留 `make ocr` / `make reconstruct` 入口，但这两条 CLI 在当前提交中还不是完整实现。
 
 ## 环境准备
 
@@ -71,6 +71,7 @@ make reconstruct IMAGE=/absolute/path/to/form.png
 推荐按下面顺序操作：
 
 1. 准备好原始表单图片绝对路径和已有的 `ocr_compact.json`
+   `ocr_compact.json` 需要由仓库外部链路预先生成，本仓库当前不提供受支持的生成命令
 2. 启动后端 API：`make api-dev`
 3. 启动前端工作台：`make frontend-dev`
 4. 在工作台里创建会话，输入 `image_path` 和 `ocr_json_path`
@@ -86,7 +87,7 @@ make frontend-dev
 创建会话时请填写：
 
 - `image_path`：原始表单图片绝对路径
-- `ocr_json_path`：上一步 OCR 生成的 `ocr_compact.json` 绝对路径
+- `ocr_json_path`：仓库外部链路预先生成的 `ocr_compact.json` 绝对路径
 
 这样做可以把 OCR 质量问题和 prompt / 多轮编辑问题分开分析。当前 workbench 不要求 OCR 一定由本仓库生成，只要求你提供可用的 JSON 文件。
 
@@ -102,7 +103,7 @@ make frontend-dev
 - `result.html`
 - `metadata.json`
 
-其中 `ocr_compact.json` 是 workbench 创建会话时最关键的输入，建议先人工确认其质量，再把它作为后续联调基线。
+其中 `ocr_compact.json` 是 workbench 创建会话时最关键的输入，建议先人工确认其质量，再把它作为后续联调基线。当前这份输入需要由仓库外部链路预先生成。
 
 ## 相关文档
 

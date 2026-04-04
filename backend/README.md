@@ -2,8 +2,8 @@
 
 ## 目录职责
 
-`backend/` 当前主要负责 workbench 编辑接口，同时保留少量历史 CLI 入口：
-
+`backend/` 当前主要负责 workbench 编辑接口，同时保留少量历史 CLI 入口。
+ocr_compact.json 需要由仓库外部链路预先生成，当前后端不提供受支持的 OCR 产物生成命令：
 1. workbench 会话 API，与前端对话工作台联调
 2. `ocr` / `reconstruct` 两个预留命令入口
 
@@ -105,6 +105,7 @@ curl -X POST http://127.0.0.1:8000/api/sessions/<session-id>/rollback
 推荐按下面顺序执行：
 
 1. 准备好表单图片路径和已有的 `ocr_compact.json`
+   `ocr_compact.json` 需要由仓库外部链路预先生成，本仓库当前不提供受支持的生成命令
 2. 启动 API：`make api-dev`
 3. 让前端工作台用 `image_path + ocr_json_path` 创建会话
 4. 在 workbench 中反复发送修改消息，并根据需要回退版本
@@ -116,7 +117,7 @@ curl -X POST http://127.0.0.1:8000/api/sessions/<session-id>/rollback
 ### 输入
 
 - 单张图片文件路径，例如 `/absolute/path/to/form.png`
-- OCR 产物 `ocr_compact.json`
+- OCR 产物 `ocr_compact.json`，由仓库外部链路预先生成
 - `backend/app/prompts/workbench_init.md`
 - `backend/app/prompts/workbench_edit.md`
 - `backend/.env` 中的模型接口配置

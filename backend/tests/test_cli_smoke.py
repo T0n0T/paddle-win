@@ -59,3 +59,22 @@ def test_make_latest_outputs_latest_run_directory(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert result.stdout.strip() == f"{backend_dir}/runs/{newer_run.name}"
     assert "No such file or directory" not in result.stderr
+
+
+def test_readmes_make_external_ocr_json_boundary_explicit() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    root_readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    backend_readme = (repo_root / "backend/README.md").read_text(encoding="utf-8")
+
+    assert "ocr_compact.json 需要由仓库外部链路预先生成" in root_readme
+    assert "ocr_compact.json 需要由仓库外部链路预先生成" in backend_readme
+
+
+def test_zero_shot_plan_is_marked_as_paused_in_favor_of_workbench() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    plan = (
+        repo_root / "docs/superpowers/plans/2026-04-03-zero-shot-form-reconstruction.md"
+    ).read_text(encoding="utf-8")
+
+    assert "状态：已暂停，不再作为当前主线实施计划" in plan
+    assert "当前受支持主线为“外部 OCR JSON + workbench 会话编辑”" in plan

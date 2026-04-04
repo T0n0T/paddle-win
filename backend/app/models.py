@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +7,12 @@ class OCRBlock(BaseModel):
     text: str
     bbox: list[float] = Field(default_factory=list)
     block_type: str = "text"
+
+
+class PipelineRunMetadata(BaseModel):
+    run_id: str | None = None
+    source_kind: str = "external"
+    notes: list[str] = Field(default_factory=list)
 
 
 class PipelineState(BaseModel):
@@ -19,4 +24,4 @@ class PipelineState(BaseModel):
     prompt_path: Path | None = None
     model_raw_path: Path | None = None
     result_html_path: Path | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: PipelineRunMetadata = Field(default_factory=PipelineRunMetadata)
