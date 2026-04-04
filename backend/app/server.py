@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import create_sessions_router
 from app.config import BACKEND_ROOT, Settings
@@ -31,6 +32,12 @@ class FakeWorkbenchLLMService:
         )
 
 
+LOCAL_DEV_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+
+
 def create_app(*, fake_mode: bool = False, settings: Settings | None = None) -> FastAPI:
     app_settings = settings or Settings()
     init_prompt_path = _resolve_backend_path(app_settings.workbench_init_prompt_path)
@@ -53,6 +60,12 @@ def create_app(*, fake_mode: bool = False, settings: Settings | None = None) -> 
     )
 
     app = FastAPI(title="Paddle Win Backend")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(LOCAL_DEV_CORS_ORIGINS),
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
+    )
     app.include_router(create_sessions_router(service))
     return app
 

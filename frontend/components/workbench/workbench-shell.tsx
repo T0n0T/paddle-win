@@ -117,7 +117,11 @@ export function WorkbenchShell() {
         </header>
 
         {error ? (
-          <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800 shadow-sm">
+          <div
+            role="alert"
+            aria-live="polite"
+            className="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800 shadow-sm"
+          >
             {error}
           </div>
         ) : null}

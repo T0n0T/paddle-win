@@ -185,6 +185,24 @@ def test_missing_session_routes_return_404() -> None:
     assert rollback_response.json() == {"detail": "session not found"}
 
 
+def test_cors_preflight_allows_local_frontend_origin() -> None:
+    client = TestClient(create_app(fake_mode=True))
+
+    response = client.options(
+        "/api/sessions",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "POST" in response.headers["access-control-allow-methods"]
+    assert "content-type" in response.headers["access-control-allow-headers"].lower()
+
+
 def test_invalid_payload_errors_return_422_with_explicit_detail(tmp_path: Path) -> None:
     image_path, ocr_json_path = write_source_files(tmp_path)
     init_prompt_path, edit_prompt_path = write_prompt_files(tmp_path)
