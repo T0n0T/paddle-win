@@ -428,7 +428,7 @@ CLI 不再定义产品主流程，只保留后端调试入口：
 - 缺失文件返回 `422`
 - 非法文件返回预期错误
 - 创建失败时返回明确错误消息
-- 四个 `SessionSnapshot` 接口都不再暴露 `source_image_path` 与 `ocr_json_path`
+- 四个 `SessionSnapshot` 接口都不再暴露 `source_image_path`、`ocr_json_path`、`artifact_dir`
 
 ### 14.3 前端组件测试
 
