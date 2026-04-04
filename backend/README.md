@@ -2,12 +2,12 @@
 
 ## 目录职责
 
-`backend/` 负责两类能力：
+`backend/` 当前主要负责 workbench 编辑接口，同时保留少量历史 CLI 入口：
 
-1. OCR + HTML 重建命令行链路
-2. workbench 会话 API，与前端对话工作台联调
+1. workbench 会话 API，与前端对话工作台联调
+2. `ocr` / `reconstruct` 两个预留命令入口
 
-后端会把重建链路相关产物统一写到 `backend/runs/<run-id>/`，便于排查 OCR、prompt 和模型输出问题。
+如果你已经有历史运行产物，仍然沿用 `backend/runs/<run-id>/` 目录约定，便于排查 OCR、prompt 和模型输出问题。
 
 ## 环境准备
 
@@ -32,11 +32,7 @@ cp .env.example .env
 优先使用仓库根目录的 `Makefile`：
 
 ```bash
-make ocr IMAGE=/absolute/path/to/form.png
-make reconstruct IMAGE=/absolute/path/to/form.png
-make reconstruct-from-ocr IMAGE=/absolute/path/to/form.png OCR_JSON=/absolute/path/to/backend/runs/<run-id>/ocr_compact.json
 make latest
-make prompt-show
 make api-dev
 ```
 
@@ -44,14 +40,20 @@ make api-dev
 
 ```bash
 cd backend
-uv run python main.py ocr /absolute/path/to/form.png
-uv run python main.py reconstruct /absolute/path/to/form.png
-uv run python main.py reconstruct-from-ocr /absolute/path/to/form.png /absolute/path/to/backend/runs/<run-id>/ocr_compact.json
 uv run uvicorn app.server:create_app --factory --reload
 uv run pytest -q
 ```
 
 `make api-dev` 会启动 FastAPI 开发服务，默认监听 `http://127.0.0.1:8000`。
+
+如果你需要检查当前保留的 CLI 入口，也可以执行：
+
+```bash
+make ocr IMAGE=/absolute/path/to/form.png
+make reconstruct IMAGE=/absolute/path/to/form.png
+```
+
+这两个命令在当前提交中仍是占位实现，不应作为 workbench 工作流的前置步骤。
 
 ## workbench 会话接口
 
@@ -102,13 +104,12 @@ curl -X POST http://127.0.0.1:8000/api/sessions/<session-id>/rollback
 
 推荐按下面顺序执行：
 
-1. 先运行 `make ocr IMAGE=...`，产出 `ocr_raw.json` 与 `ocr_compact.json`
-2. 检查 OCR 结果是否可接受
-3. 启动 API：`make api-dev`
-4. 让前端工作台用 `image_path + ocr_json_path` 创建会话
-5. 在 workbench 中反复发送修改消息，并根据需要回退版本
+1. 准备好表单图片路径和已有的 `ocr_compact.json`
+2. 启动 API：`make api-dev`
+3. 让前端工作台用 `image_path + ocr_json_path` 创建会话
+4. 在 workbench 中反复发送修改消息，并根据需要回退版本
 
-如果只是调 prompt、换模型或比较会话编辑效果，不需要重复执行 OCR。只有当 OCR 本身有明显问题时，才需要重新跑 `make ocr`。
+如果只是调 prompt、换模型或比较会话编辑效果，不需要重复执行 OCR。当前 workbench 只要求 OCR JSON 可用，不要求一定由本仓库生成。
 
 ## 输入与输出
 
@@ -116,14 +117,13 @@ curl -X POST http://127.0.0.1:8000/api/sessions/<session-id>/rollback
 
 - 单张图片文件路径，例如 `/absolute/path/to/form.png`
 - OCR 产物 `ocr_compact.json`
-- `backend/app/prompts/reconstruct_html.md`
 - `backend/app/prompts/workbench_init.md`
 - `backend/app/prompts/workbench_edit.md`
 - `backend/.env` 中的模型接口配置
 
 ### 输出
 
-完整重建链路成功后，单次运行目录下会生成：
+如果你已经通过其他链路生成了完整重建产物，单次运行目录下通常会有：
 
 - `source.*`
 - `ocr_raw.json`

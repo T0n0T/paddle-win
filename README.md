@@ -2,12 +2,12 @@
 
 ## 项目简介
 
-`paddle-win` 现在包含两部分能力：
+`paddle-win` 当前已提交的能力主要集中在表单编辑 workbench：
 
-1. 后端表单重建链路：输入单张表单图片，运行 OCR、拼接 prompt、调用多模态模型生成 HTML，并把调试产物写入 `backend/runs/<run-id>/`。
+1. 后端 workbench 会话接口：接收已有的表单图片路径与 OCR JSON 路径，初始化编辑会话，维护 `form_json`、HTML 预览和变更摘要。
 2. 前端对话工作台：基于后端会话 API 创建编辑会话，支持多轮自然语言修改、预览当前 HTML、回退上一轮版本。
 
-当前推荐的使用方式不是每次都整链路重跑，而是先固定 OCR 结果，再进入 workbench 做会话化联调。
+当前推荐的使用方式是先准备稳定的 OCR JSON，再进入 workbench 做会话化联调。仓库里仍保留 `make ocr` / `make reconstruct` 入口，但这两条 CLI 在当前提交中还不是完整实现。
 
 ## 环境准备
 
@@ -45,33 +45,32 @@ cp frontend/.env.example frontend/.env.local
 
 ## 常用命令
 
-### 后端链路
+### 运行 workbench
 
 ```bash
-make ocr IMAGE=/absolute/path/to/form.png
-make reconstruct IMAGE=/absolute/path/to/form.png
-make reconstruct-from-ocr \
-  IMAGE=/absolute/path/to/form.png \
-  OCR_JSON=/absolute/path/to/backend/runs/<run-id>/ocr_compact.json
 make latest
-make prompt-show
-```
-
-### 本地开发
-
-```bash
 make api-dev
 make frontend-dev
 ```
 
+- `make latest`：如果你的 `backend/runs/` 下已经有历史产物，用它查看最近一次运行目录
 - `make api-dev` 会在 `http://127.0.0.1:8000` 启动 FastAPI 会话接口
 - `make frontend-dev` 会在 `http://localhost:3000` 启动前端 workbench
+
+如果你需要试验仓库中预留的 CLI 入口，也可以执行：
+
+```bash
+make ocr IMAGE=/absolute/path/to/form.png
+make reconstruct IMAGE=/absolute/path/to/form.png
+```
+
+这两条命令当前仍处于占位阶段，不作为 workbench 联调主流程的一部分。
 
 ## 推荐联调流程
 
 推荐按下面顺序操作：
 
-1. 先跑 OCR，拿到稳定的 `ocr_compact.json`
+1. 准备好原始表单图片绝对路径和已有的 `ocr_compact.json`
 2. 启动后端 API：`make api-dev`
 3. 启动前端工作台：`make frontend-dev`
 4. 在工作台里创建会话，输入 `image_path` 和 `ocr_json_path`
@@ -80,8 +79,6 @@ make frontend-dev
 示例：
 
 ```bash
-make ocr IMAGE=/absolute/path/to/form.png
-make latest
 make api-dev
 make frontend-dev
 ```
@@ -91,11 +88,11 @@ make frontend-dev
 - `image_path`：原始表单图片绝对路径
 - `ocr_json_path`：上一步 OCR 生成的 `ocr_compact.json` 绝对路径
 
-这样做可以把 OCR 质量问题和 prompt / 多轮编辑问题分开分析。只有当 OCR 本身明显有误时，才需要重新执行 `make ocr`。
+这样做可以把 OCR 质量问题和 prompt / 多轮编辑问题分开分析。当前 workbench 不要求 OCR 一定由本仓库生成，只要求你提供可用的 JSON 文件。
 
 ## 调试产物
 
-单次重建运行目录通常包含：
+如果你已经通过别的链路生成过 `backend/runs/<run-id>/` 产物目录，里面通常会有：
 
 - `source.*`
 - `ocr_raw.json`
