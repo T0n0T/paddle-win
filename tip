@@ -1,0 +1,1 @@
+下一步最有回报的是补“会话持久化与 artifact/session 底座”，把现在 backend/app/workbench/store.py 里的纯内存会话升级成可落盘、可恢复、可审计的实现。下一轮就直接从这块开始
