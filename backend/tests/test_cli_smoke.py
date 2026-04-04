@@ -11,6 +11,7 @@ def test_makefile_contains_required_targets() -> None:
     assert "latest:" in content
     assert "reconstruct-from-ocr:" not in content
     assert "prompt-show:" not in content
+    assert "find data/jobs" in content
     assert "sed 's#^#$(BACKEND_DIR)/#'" in content
 
 
@@ -41,7 +42,7 @@ def test_make_latest_succeeds_when_runs_directory_is_missing(tmp_path: Path) -> 
 def test_make_latest_outputs_latest_run_directory(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     backend_dir = tmp_path / "backend"
-    runs_dir = backend_dir / "runs"
+    runs_dir = backend_dir / "data/jobs"
     runs_dir.mkdir(parents=True)
     older_run = runs_dir / "20260403-101500-000001"
     newer_run = runs_dir / "20260403-101500-000002"
@@ -57,17 +58,19 @@ def test_make_latest_outputs_latest_run_directory(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0
-    assert result.stdout.strip() == f"{backend_dir}/runs/{newer_run.name}"
+    assert result.stdout.strip() == f"{backend_dir}/data/jobs/{newer_run.name}"
     assert "No such file or directory" not in result.stderr
 
 
-def test_readmes_make_external_ocr_json_boundary_explicit() -> None:
+def test_readmes_describe_upload_workflow_and_default_artifact_directory() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     root_readme = (repo_root / "README.md").read_text(encoding="utf-8")
     backend_readme = (repo_root / "backend/README.md").read_text(encoding="utf-8")
 
-    assert "ocr_compact.json 需要由仓库外部链路预先生成" in root_readme
-    assert "ocr_compact.json 需要由仓库外部链路预先生成" in backend_readme
+    assert "上传图片并创建会话" in root_readme
+    assert "backend/data/jobs" in root_readme
+    assert "上传图片文件 `image`" in backend_readme
+    assert "backend/data/jobs" in backend_readme
 
 
 def test_zero_shot_plan_is_marked_as_paused_in_favor_of_workbench() -> None:

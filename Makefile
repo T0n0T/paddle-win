@@ -12,7 +12,7 @@ reconstruct:
 	cd $(BACKEND_DIR) && $(PYTHON) main.py reconstruct "$(IMAGE)"
 
 latest:
-	cd $(BACKEND_DIR) && if [ -d runs ]; then find runs -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1 | sed 's#^#$(BACKEND_DIR)/#'; fi
+	cd $(BACKEND_DIR) && if [ -d data/jobs ]; then find data/jobs -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1 | sed 's#^#$(BACKEND_DIR)/#'; fi
 
 api-dev:
 	cd $(BACKEND_DIR) && uv run uvicorn app.server:create_app --factory --reload

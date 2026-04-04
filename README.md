@@ -4,10 +4,10 @@
 
 `paddle-win` 当前已提交的能力主要集中在表单编辑 workbench：
 
-1. 后端 workbench 会话接口：接收已有的表单图片路径与 OCR JSON 路径，初始化编辑会话，维护 `form_json`、HTML 预览和变更摘要。
+1. 后端 workbench 会话接口：接收上传的表单图片，同步完成 OCR、首轮 HTML 重建并初始化编辑会话，维护 `form_json`、HTML 预览和变更摘要。
 2. 前端对话工作台：基于后端会话 API 创建编辑会话，支持多轮自然语言修改、预览当前 HTML、回退上一轮版本。
 
-当前推荐的使用方式是先准备稳定的 OCR JSON，再进入 workbench 做会话化联调。ocr_compact.json 需要由仓库外部链路预先生成；仓库里仍保留 `make ocr` / `make reconstruct` 入口，但这两条 CLI 在当前提交中还不是完整实现。
+当前推荐的使用方式是直接上传表单图片进入 workbench 做会话化联调。仓库里仍保留 `make ocr` / `make reconstruct` 入口，但这两条 CLI 在当前提交中还不是完整实现。
 
 ## 环境准备
 
@@ -38,6 +38,7 @@ cp frontend/.env.example frontend/.env.local
 - `OPENAI_API_KEY`：模型接口密钥
 - `OPENAI_BASE_URL`：OpenAI 兼容接口地址，直连官方可留空
 - `OPENAI_MODEL`：多模态模型名
+- `ARTIFACT_ROOT`：后端产物目录，当前默认是 `backend/data/jobs`
 - `WORKBENCH_INIT_PROMPT_PATH`：初始化会话 prompt 模板路径
 - `WORKBENCH_EDIT_PROMPT_PATH`：多轮编辑 prompt 模板路径
 - `WORKBENCH_MAX_VALIDATION_RETRIES`：模型输出校验失败时的重试次数
@@ -53,7 +54,7 @@ make api-dev
 make frontend-dev
 ```
 
-- `make latest`：如果你的 `backend/runs/` 下已经有历史产物，用它查看最近一次运行目录
+- `make latest`：查看当前 `ARTIFACT_ROOT` 下最近一次产物目录；默认对应 `backend/data/jobs/`
 - `make api-dev` 会在 `http://127.0.0.1:8000` 启动 FastAPI 会话接口
 - `make frontend-dev` 会在 `http://localhost:3000` 启动前端 workbench
 
@@ -70,11 +71,10 @@ make reconstruct IMAGE=/absolute/path/to/form.png
 
 推荐按下面顺序操作：
 
-1. 准备好原始表单图片绝对路径和已有的 `ocr_compact.json`
-   `ocr_compact.json` 需要由仓库外部链路预先生成，本仓库当前不提供受支持的生成命令
+1. 准备好原始表单图片文件
 2. 启动后端 API：`make api-dev`
 3. 启动前端工作台：`make frontend-dev`
-4. 在工作台里创建会话，输入 `image_path` 和 `ocr_json_path`
+4. 在工作台里上传图片并创建会话
 5. 通过自然语言发送修改请求，观察 HTML 预览和回退结果
 
 示例：
@@ -84,16 +84,11 @@ make api-dev
 make frontend-dev
 ```
 
-创建会话时请填写：
-
-- `image_path`：原始表单图片绝对路径
-- `ocr_json_path`：仓库外部链路预先生成的 `ocr_compact.json` 绝对路径
-
-这样做可以把 OCR 质量问题和 prompt / 多轮编辑问题分开分析。当前 workbench 不要求 OCR 一定由本仓库生成，只要求你提供可用的 JSON 文件。
+创建会话时只需要选择图片文件。后端会在创建阶段自动完成 OCR、首轮 HTML 重建和调试产物写出。
 
 ## 调试产物
 
-如果你已经通过别的链路生成过 `backend/runs/<run-id>/` 产物目录，里面通常会有：
+如果你已经通过 workbench 或其他链路生成过 `backend/data/jobs/<run-id>/` 产物目录，里面通常会有：
 
 - `source.*`
 - `ocr_raw.json`
@@ -103,7 +98,7 @@ make frontend-dev
 - `result.html`
 - `metadata.json`
 
-其中 `ocr_compact.json` 是 workbench 创建会话时最关键的输入，建议先人工确认其质量，再把它作为后续联调基线。当前这份输入需要由仓库外部链路预先生成。
+其中 `ocr_compact.json` 是后端创建会话时自动生成的关键中间产物，建议在需要排查 OCR 质量时优先查看这份文件。
 
 ## 相关文档
 
