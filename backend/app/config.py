@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     run_root: Path = Field(default=Path("runs"), validation_alias=AliasChoices("RUN_ROOT", "ARTIFACT_ROOT"))
     prompt_template_path: Path = Path("app/prompts/reconstruct_html.md")
+    workbench_init_prompt_path: Path = Path("app/prompts/workbench_init.md")
+    workbench_edit_prompt_path: Path = Path("app/prompts/workbench_edit.md")
+    workbench_max_validation_retries: int = 1
     enable_dev_artifacts: bool = True
 
     @field_validator("run_root", mode="after")
